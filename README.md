@@ -1,4 +1,4 @@
-# KT-Plugin
+# FMT_G1M
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A Noesis plugin to import G1M model files, G1T texture file, G1A and G2A skeletal animation files. Simply put the 2 python files in the plugins/python/ folder, next to the others.
