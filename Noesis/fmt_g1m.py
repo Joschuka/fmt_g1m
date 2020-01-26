@@ -396,6 +396,8 @@ def parseG1MS(currentPosition, bs):
 	return 1
 
 def parseG1MOid(bs):
+	if len(boneList) == 0:
+		return 1
 	stringList = []
 	while(1):
 		length = bs.readByte()
@@ -414,9 +416,11 @@ def parseG1MOid(bs):
 		print("Oid is too small!")
 		return 0
 
-	for i in range(min([len(stringList) - 3, len(boneList)])):
-		boneList[i].name = stringList[3 + i].split(',')[-1]
-		print("Named Bone %d to %s" % (i, boneList[i].name))
+	for n, b in zip(stringList[3:], boneList):
+		b.name = n.split(',')[-1]
+
+	if boneList[0].name == "root":
+		boneList[0].name = stringList[1].split(':')[-1]
 
 	print("Bone names %s parsed" % stringList[1])
 	return 1
