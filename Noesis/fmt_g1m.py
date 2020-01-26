@@ -802,7 +802,7 @@ def function2(v):
 	q[3] = c
 	return q
 
-def processG2A(bs, animCount):
+def processG2A(bs, animCount, animName):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -873,7 +873,7 @@ def processG2A(bs, animCount):
 		else:
 			print("G2A Animation not compatible with the skeleton")
 			return -1
-	anim = NoeKeyFramedAnim("G2A Animation " + str(animCount), boneList, keyFramedBoneList, framerate)
+	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, framerate)
 	animationList.append(anim)
 	print("G2A Animation " + str(animCount + 1) + " loaded")
 	return framerate
@@ -907,7 +907,7 @@ def function3(chanValues, chanTimes, indexr, componentCount):
 			allvalues[u].append(value)
 	return [allvalues, alltimes]
 
-def processG1A(bs, animCount):
+def processG1A(bs, animCount, animName):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1005,7 +1005,7 @@ def processG1A(bs, animCount):
 		else:
 			print("G1A Animation not compatible with the skeleton")
 			return -1
-	anim = NoeKeyFramedAnim("G1A Animation " + str(animCount), boneList, keyFramedBoneList, 30)
+	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, 30)
 	animationList.append(anim)
 	print("G1A Animation " + str(animCount + 1) + " loaded")
 	return 30
@@ -1202,6 +1202,7 @@ def LoadModel(data, mdlList):
 
 		for animPath in animPaths:
 			with open(animPath, "rb") as gaStream:
+				animName = os.path.basename(animPath)[:-4] # Filename without extension
 				gaData = gaStream.read()
 				gaBs = NoeBitStream(gaData)
 				gaBs.setEndian(endian)
@@ -1209,9 +1210,9 @@ def LoadModel(data, mdlList):
 				gaBs.seek(0)
 				tempFrame = -1
 				if magic == 0x4732415F:
-					tempframe = processG2A(gaBs, animCount)
+					tempframe = processG2A(gaBs, animCount, animName)
 				elif magic == 0x4731415F:
-					tempframe = processG1A(gaBs, animCount)
+					tempframe = processG1A(gaBs, animCount, animName)
 				if tempframe != -1:
 					globalFramerate = tempframe
 					animCount += 1
