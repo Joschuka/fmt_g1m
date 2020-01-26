@@ -399,10 +399,8 @@ def parseG1MOid(bs):
 		length = bs.readByte()
 		if (length == 255 or length == -1):
 			break
-		print(length)
 		string = noeStrFromBytes(bs.readBytes(length))
 		stringList.append(string)
-	# return stringList
 
 	for n, b in zip(stringList, boneList):
 		b.name = n
