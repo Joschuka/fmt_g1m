@@ -19,7 +19,7 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 
 #paired files options
 bLoadG1T = True			# Allow to choose a paired .g1t file
-bLoadG1MS = False 		# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MS = False		# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bAutoLoadG1MS = False	# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = True # Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
@@ -713,22 +713,16 @@ def processG1T(bs):
 		elif (textureFormat == 0x5B):
 			format = noesis.NOESISTEX_DXT5
 		elif (textureFormat == 0x5C):
-			print("Not confirmed, may not work")
 			format = noesis.FOURCC_ATI1
 		elif (textureFormat == 0x5D):
-			print("Not confirmed, may not work")
 			format = noesis.FOURCC_ATI2
 		elif (textureFormat == 0x5E):
-			print("Not confirmed, may not work")
 			format = noesis.FOURCC_BC6H
 		elif (textureFormat == 0x5F):
-			print("Not confirmed, may not work")
 			format = noesis.FOURCC_BC7
 		elif (textureFormat == 0x60):
-			print("Not confirmed, may not work")
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x62):
-			print("Not confirmed, may not work")
 			format = noesis.NOESISTEX_DXT5
 		else:
 			format = noesis.NOESISTEX_UNKNOWN
@@ -1502,6 +1496,9 @@ def LoadModel(data, mdlList):
 					if element.typeHandler in [0x0002,0x0200]:
 						clothStuff1 = NoeVec4([bs.readFloat() for i in range(4)])
 					# mesh.clothStuff1Buffer.append(clothStuff1)
+					elif element.typeHandler in [0x0003,0x0300]:
+						clothStuff1 = NoeVec4([bs.readFloat() for i in range(4)])
+						mesh.clothStuff1Buffer.append(clothStuff1)
 					elif element.typeHandler in [0x0005,0x0500]:
 						clothStuff1 = NoeVec4([bs.readUByte() for i in range(4)])
 						mesh.clothStuff1Buffer.append(clothStuff1)
