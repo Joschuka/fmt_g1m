@@ -733,7 +733,7 @@ def processG1T(bs):
 			textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
 		else:
 			textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)
-		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (txtSys, mortonWidth))
+		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		print("texture %d/%d %dx%d (%X, %X)" % (i + 1, textureCount, width, height, textureFormat, len(textureData)))
 		if mortonWidth > 0:
 			textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
