@@ -43,9 +43,11 @@ def registerNoesisTypes():
 	noesis.setHandlerTypeCheck(handle, CheckModelType)
 	noesis.setHandlerLoadModel(handle, LoadModel)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mtexture", "Specify G1T path", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimations", "Load Specified Animations", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1manimationdir", "Load Specified Animations from directories", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mcloth", "Compute Cloth Data", 0)
 	noesis.addOption(handle, "-g1mdriver", "Compute Driver Data", 0)
 	if (bLog):
@@ -687,7 +689,7 @@ def processG1T(bs):
 		headerStart = bs.tell()
 		bs.seek(tableoffset + offsetList[i])
 		mipSys = bs.readUByte()
-		mipMapNumber = mipSys >> 4;
+		mipMapNumber = mipSys >> 4
 		texSys = mipSys & 0xF
 		textureFormat = bs.readUByte()
 		dxdy = bs.readUByte()
@@ -1128,18 +1130,24 @@ def LoadModel(data, mdlList):
 		g1tDataBs.setEndian(endian)
 		processG1T(g1tDataBs)	
 	
-	if bAutoLoadG1MS:
-		dir = os.path.dirname(rapi.getInputName())
-		for root, dirs, files in os.walk(dir):
-			for fileName in files:
-				lowerName = fileName.lower()
-				if lowerName.endswith(".g1m"):
-					g1mPath = os.path.join(root, fileName)
-					if (rapi.checkFileExists(g1mPath)):
-						g1sData = rapi.loadIntoByteArray(g1mPath)
-						print("Skeleton detected at ", g1mPath)
-						break
-			break
+	if bAutoLoadG1MS or noesis.optWasInvoked("-g1mautoskeleton"):
+		thisName = rapi.getInputName()
+		dir = os.path.dirname(thisName)
+
+		if thisName.endswith("_default.g1m") and rapi.checkFileExists(thisName[0:-12] + ".g1m"):
+			g1sData = rapi.loadIntoByteArray(thisName[0:-12] + ".g1m")
+			print("Skeleton detected at ", thisName[0:-12] + ".g1m")
+		else:
+			for root, dirs, files in os.walk(dir):
+				for fileName in files:
+					lowerName = fileName.lower()
+					if lowerName.endswith(".g1m"):
+						g1mPath = os.path.join(root, fileName)
+						if (rapi.checkFileExists(g1mPath)):
+							g1sData = rapi.loadIntoByteArray(g1mPath)
+							print("Skeleton detected at ", g1mPath)
+							break
+				break
 	
 	if bLoadG1MS or noesis.optWasInvoked("-g1mskeleton"):
 		if g1sData is None:
@@ -1217,8 +1225,12 @@ def LoadModel(data, mdlList):
 		# parseG1MM(bs)
 		bs.seek(currentPosition + chunkSize)	
 	
-	if(bLoadG1AG2AFolder):		
-		animDir = noesis.userPrompt(noesis.NOEUSERVAL_FOLDERPATH, "Open Folder", "Select the folder to get the animations from", noesis.getSelectedDirectory(), ValidateInputDirectory)
+	if bLoadG1AG2AFolder or noesis.optWasInvoked("-g1manimationdir"):
+		if noesis.optWasInvoked("-g1manimationdir"):
+			animDir = noesis.optGetArg("-g1manimationdir")
+		else:
+			animDir = noesis.userPrompt(noesis.NOEUSERVAL_FOLDERPATH, "Open Folder", "Select the folder to get the animations from", noesis.getSelectedDirectory(), ValidateInputDirectory)
+
 		if animDir is not None:
 			for root, dirs, files in os.walk(animDir):
 				for fileName in files:
