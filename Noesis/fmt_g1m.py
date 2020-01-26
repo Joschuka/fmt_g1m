@@ -18,12 +18,12 @@ bDisplayCloth = True	# Discard cloth meshes or not, you may want to put it to fa
 bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 
 #paired files options
-bLoadG1T = True			# Allow to choose a paired .g1t file
-bLoadG1MS = False		# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
-bLoadG1MOid = False      # Allow to choose a paired Oid.bin skeleton bone names file. 
-bAutoLoadG1MS = False	# Load the first g1m in the same folder as skeleton
-bLoadG1AG2A = False		# Allow to choose a paired .g1a/.g2a file
-bLoadG1AG2AFolder = True # Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
+bLoadG1T = True				# Allow to choose a paired .g1t file
+bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
+bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
+bLoadG1AG2A = False			# Allow to choose a paired .g1a/.g2a file
+bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 
 # =================================================================
 # Miscenalleous
@@ -402,10 +402,21 @@ def parseG1MOid(bs):
 		string = noeStrFromBytes(bs.readBytes(length))
 		stringList.append(string)
 
-	for n, b in zip(stringList, boneList):
-		b.name = n
+	if stringList[0] != "HeaderCharaOid":
+		print("Oid type is not HeaderCharaOid! Might break!")
 
-	print("Bone names parsed")
+	if stringList[2] != "1":
+		print("Expected Oid constant is not 1! Might break!")
+
+	if len(stringList) < 4:
+		print("Oid is too small!")
+		return 0
+
+	for i in range(min([len(stringList) - 3, len(boneList)])):
+		boneList[i].name = stringList[3 + i].split(',')[-1]
+		print("Named Bone %d to %s" % (i, boneList[i].name))
+
+	print("Bone names %s parsed" % stringList[1])
 	return 1
 
 
