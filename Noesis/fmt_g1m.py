@@ -396,7 +396,7 @@ def parseG1MS(currentPosition, bs):
 	return 1
 
 def parseG1MOid(bs):
-	if len(boneList) == 0:
+	if len(boneList) == 0: 
 		return 1
 	stringList = []
 	while(1):
@@ -690,7 +690,6 @@ def processG1T(bs):
 	bs.seek(tableoffset)
 	offsetList = [bs.readUInt() for j in range(textureCount)]
 	for i in range(textureCount):
-		headerStart = bs.tell()
 		bs.seek(tableoffset + offsetList[i])
 		mipSys = bs.readUByte()
 		mipMapNumber = mipSys >> 4
@@ -703,12 +702,12 @@ def processG1T(bs):
 		flags = bs.readUShort()
 		height = pow(2, int(dxdy>> 4))
 		width = pow(2, dxdy & 0x0F)
-		dataStart = bs.tell()
+		headerSize = 0x8
 		if flags & G1TG_FLAG_EXTRA_DATA == G1TG_FLAG_EXTRA_DATA:
 			extraDataSize = bs.readUInt()
 			if extraDataSize != 0xC:
 				print("Extra Texture Data is not 0xC Bytes! Might Die!")
-			dataStart += extraDataSize
+			headerSize += extraDataSize
 			if (width==1):
 				width = bs.readUInt()
 			else:
@@ -762,7 +761,6 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_UNKNOWN
 			print("possible unknown format !")
 		textureName = str(i) + '.dds'
-		headerSize = dataStart - headerStart
 		if i < textureCount - 1:			
 			textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
 		else:
