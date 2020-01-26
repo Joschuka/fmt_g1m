@@ -20,6 +20,7 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 #paired files options
 bLoadG1T = True			# Allow to choose a paired .g1t file
 bLoadG1MS = False		# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MOid = False      # Allow to choose a paired Oid.bin skeleton bone names file. 
 bAutoLoadG1MS = False	# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = True # Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
@@ -42,6 +43,7 @@ def registerNoesisTypes():
 	noesis.setHandlerTypeCheck(handle, CheckModelType)
 	noesis.setHandlerLoadModel(handle, LoadModel)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mtexture", "Specify G1T path", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimations", "Load Specified Animations", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mcloth", "Compute Cloth Data", 0)
@@ -391,6 +393,21 @@ def parseG1MS(currentPosition, bs):
 	print("Skeleton parsed")
 	return 1
 
+def parseG1MOid(bs):
+	stringList = []
+	while(1):
+		length = bs.readByte()
+		if (length == 255 or length == -1):
+			break
+		string = noeStrFromBytes(bs.readBytes(length))
+		stringList.append(string)
+
+	for n, b in zip(stringList, boneList):
+		b.name = n
+
+	print("Bone names parsed")
+	return 1
+
 
 def parseG1MF(bs):
 	Bytes = bs.read('30i')
@@ -733,7 +750,7 @@ def processG1T(bs):
 			textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
 		else:
 			textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)
-		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (txtSys, mortonWidth))
+		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		print("texture %d/%d %dx%d (%X, %X)" % (i + 1, textureCount, width, height, textureFormat, len(textureData)))
 		if mortonWidth > 0:
 			textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
@@ -802,7 +819,7 @@ def function2(v):
 	q[3] = c
 	return q
 
-def processG2A(bs, animCount):
+def processG2A(bs, animCount, animName):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -873,7 +890,7 @@ def processG2A(bs, animCount):
 		else:
 			print("G2A Animation not compatible with the skeleton")
 			return -1
-	anim = NoeKeyFramedAnim("G2A Animation " + str(animCount), boneList, keyFramedBoneList, framerate)
+	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, framerate)
 	animationList.append(anim)
 	print("G2A Animation " + str(animCount + 1) + " loaded")
 	return framerate
@@ -907,7 +924,7 @@ def function3(chanValues, chanTimes, indexr, componentCount):
 			allvalues[u].append(value)
 	return [allvalues, alltimes]
 
-def processG1A(bs, animCount):
+def processG1A(bs, animCount, animName):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1005,7 +1022,7 @@ def processG1A(bs, animCount):
 		else:
 			print("G1A Animation not compatible with the skeleton")
 			return -1
-	anim = NoeKeyFramedAnim("G1A Animation " + str(animCount), boneList, keyFramedBoneList, 30)
+	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, 30)
 	animationList.append(anim)
 	print("G1A Animation " + str(animCount + 1) + " loaded")
 	return 30
@@ -1059,6 +1076,7 @@ def LoadModel(data, mdlList):
 	debug = False
 	g1tData = None
 	g1sData = None
+	oidData = None
 	g2aData = None
 	animDir = None
 	globalFramerate = None
@@ -1119,7 +1137,14 @@ def LoadModel(data, mdlList):
 					g1sData = g1sStream.read()
 			else:
 				g1sData = rapi.loadPairedFileOptional("skeleton file", ".g1m")
-			
+	
+	if bLoadG1MOid or noesis.optWasInvoked("-g1mskeletonoid"):
+		if (noesis.optWasInvoked("-g1mskeletonoid")):
+			with open(noesis.optGetArg("-g1mskeletonoid")) as oidStream:
+				oidData = oidStream.read()
+		else:
+			oidData = rapi.loadPairedFileOptional("skeleton name file", "Oid.bin")
+
 	if g1sData is not None:
 		bs2 = NoeBitStream(g1sData)
 		bs2.setEndian(endian)
@@ -1135,6 +1160,11 @@ def LoadModel(data, mdlList):
 				hasNotParsedg1ms = False
 				break
 			bs2.seek(currentPosition + chunkSize)
+
+	if oidData is not None:
+		bs3 = NoeBitStream(oidData)
+		parseG1MOid(bs3)
+
 
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1202,6 +1232,7 @@ def LoadModel(data, mdlList):
 
 		for animPath in animPaths:
 			with open(animPath, "rb") as gaStream:
+				animName = os.path.basename(animPath)[:-4] # Filename without extension
 				gaData = gaStream.read()
 				gaBs = NoeBitStream(gaData)
 				gaBs.setEndian(endian)
@@ -1209,9 +1240,9 @@ def LoadModel(data, mdlList):
 				gaBs.seek(0)
 				tempFrame = -1
 				if magic == 0x4732415F:
-					tempframe = processG2A(gaBs, animCount)
+					tempframe = processG2A(gaBs, animCount, animName)
 				elif magic == 0x4731415F:
-					tempframe = processG1A(gaBs, animCount)
+					tempframe = processG1A(gaBs, animCount, animName)
 				if tempframe != -1:
 					globalFramerate = tempframe
 					animCount += 1
