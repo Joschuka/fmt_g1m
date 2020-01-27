@@ -18,12 +18,12 @@ bDisplayCloth = True	# Discard cloth meshes or not, you may want to put it to fa
 bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 
 #paired files options
-bLoadG1T = True			# Allow to choose a paired .g1t file
-bLoadG1MS = False		# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
-bLoadG1MOid = False      # Allow to choose a paired Oid.bin skeleton bone names file. 
-bAutoLoadG1MS = False	# Load the first g1m in the same folder as skeleton
-bLoadG1AG2A = False		# Allow to choose a paired .g1a/.g2a file
-bLoadG1AG2AFolder = True # Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
+bLoadG1T = True				# Allow to choose a paired .g1t file
+bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
+bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
+bLoadG1AG2A = False			# Allow to choose a paired .g1a/.g2a file
+bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 
 # =================================================================
 # Miscenalleous
@@ -43,9 +43,11 @@ def registerNoesisTypes():
 	noesis.setHandlerTypeCheck(handle, CheckModelType)
 	noesis.setHandlerLoadModel(handle, LoadModel)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mtexture", "Specify G1T path", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimations", "Load Specified Animations", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1manimationdir", "Load Specified Animations from directories", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mcloth", "Compute Cloth Data", 0)
 	noesis.addOption(handle, "-g1mdriver", "Compute Driver Data", 0)
 	if (bLog):
@@ -394,6 +396,8 @@ def parseG1MS(currentPosition, bs):
 	return 1
 
 def parseG1MOid(bs):
+	if len(boneList) == 0: 
+		return 1
 	stringList = []
 	while(1):
 		length = bs.readByte()
@@ -402,10 +406,23 @@ def parseG1MOid(bs):
 		string = noeStrFromBytes(bs.readBytes(length))
 		stringList.append(string)
 
-	for n, b in zip(stringList, boneList):
-		b.name = n
+	if stringList[0] != "HeaderCharaOid":
+		print("Oid type is not HeaderCharaOid! Might break!")
 
-	print("Bone names parsed")
+	if stringList[2] != "1":
+		print("Expected Oid constant is not 1! Might break!")
+
+	if len(stringList) < 4:
+		print("Oid is too small!")
+		return 0
+
+	for n, b in zip(stringList[3:], boneList):
+		b.name = n.split(',')[-1]
+
+	if boneList[0].name == "root":
+		boneList[0].name = stringList[1].split(':')[-1]
+
+	print("Bone names %s parsed" % stringList[1])
 	return 1
 
 
@@ -673,10 +690,9 @@ def processG1T(bs):
 	bs.seek(tableoffset)
 	offsetList = [bs.readUInt() for j in range(textureCount)]
 	for i in range(textureCount):
-		headerStart = bs.tell()
 		bs.seek(tableoffset + offsetList[i])
 		mipSys = bs.readUByte()
-		mipMapNumber = mipSys >> 4;
+		mipMapNumber = mipSys >> 4
 		texSys = mipSys & 0xF
 		textureFormat = bs.readUByte()
 		dxdy = bs.readUByte()
@@ -686,12 +702,12 @@ def processG1T(bs):
 		flags = bs.readUShort()
 		height = pow(2, int(dxdy>> 4))
 		width = pow(2, dxdy & 0x0F)
-		dataStart = bs.tell()
+		headerSize = 0x8
 		if flags & G1TG_FLAG_EXTRA_DATA == G1TG_FLAG_EXTRA_DATA:
 			extraDataSize = bs.readUInt()
 			if extraDataSize != 0xC:
 				print("Extra Texture Data is not 0xC Bytes! Might Die!")
-			dataStart += extraDataSize
+			headerSize += extraDataSize
 			if (width==1):
 				width = bs.readUInt()
 			else:
@@ -745,7 +761,6 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_UNKNOWN
 			print("possible unknown format !")
 		textureName = str(i) + '.dds'
-		headerSize = dataStart - headerStart
 		if i < textureCount - 1:			
 			textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
 		else:
@@ -1117,18 +1132,24 @@ def LoadModel(data, mdlList):
 		g1tDataBs.setEndian(endian)
 		processG1T(g1tDataBs)	
 	
-	if bAutoLoadG1MS:
-		dir = os.path.dirname(rapi.getInputName())
-		for root, dirs, files in os.walk(dir):
-			for fileName in files:
-				lowerName = fileName.lower()
-				if lowerName.endswith(".g1m"):
-					g1mPath = os.path.join(root, fileName)
-					if (rapi.checkFileExists(g1mPath)):
-						g1sData = rapi.loadIntoByteArray(g1mPath)
-						print("Skeleton detected at ", g1mPath)
-						break
-			break
+	if bAutoLoadG1MS or noesis.optWasInvoked("-g1mautoskeleton"):
+		thisName = rapi.getInputName()
+		dir = os.path.dirname(thisName)
+
+		if thisName.endswith("_default.g1m") and rapi.checkFileExists(thisName[0:-12] + ".g1m"):
+			g1sData = rapi.loadIntoByteArray(thisName[0:-12] + ".g1m")
+			print("Skeleton detected at ", thisName[0:-12] + ".g1m")
+		else:
+			for root, dirs, files in os.walk(dir):
+				for fileName in files:
+					lowerName = fileName.lower()
+					if lowerName.endswith(".g1m"):
+						g1mPath = os.path.join(root, fileName)
+						if (rapi.checkFileExists(g1mPath)):
+							g1sData = rapi.loadIntoByteArray(g1mPath)
+							print("Skeleton detected at ", g1mPath)
+							break
+				break
 	
 	if bLoadG1MS or noesis.optWasInvoked("-g1mskeleton"):
 		if g1sData is None:
@@ -1206,8 +1227,12 @@ def LoadModel(data, mdlList):
 		# parseG1MM(bs)
 		bs.seek(currentPosition + chunkSize)	
 	
-	if(bLoadG1AG2AFolder):		
-		animDir = noesis.userPrompt(noesis.NOEUSERVAL_FOLDERPATH, "Open Folder", "Select the folder to get the animations from", noesis.getSelectedDirectory(), ValidateInputDirectory)
+	if bLoadG1AG2AFolder or noesis.optWasInvoked("-g1manimationdir"):
+		if noesis.optWasInvoked("-g1manimationdir"):
+			animDir = noesis.optGetArg("-g1manimationdir")
+		else:
+			animDir = noesis.userPrompt(noesis.NOEUSERVAL_FOLDERPATH, "Open Folder", "Select the folder to get the animations from", noesis.getSelectedDirectory(), ValidateInputDirectory)
+
 		if animDir is not None:
 			for root, dirs, files in os.walk(animDir):
 				for fileName in files:
