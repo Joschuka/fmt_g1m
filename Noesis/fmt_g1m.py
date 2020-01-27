@@ -406,24 +406,31 @@ def parseG1MOid(bs):
 		string = noeStrFromBytes(bs.readBytes(length))
 		stringList.append(string)
 
-	if stringList[0] != "HeaderCharaOid":
-		print("Oid type is not HeaderCharaOid! Might break!")
-
-	if stringList[2] != "1":
-		print("Expected Oid constant is not 1! Might break!")
-
 	if len(stringList) < 4:
 		print("Oid is too small!")
 		return 0
 
-	for n, b in zip(stringList[3:], boneList):
-		b.name = n.split(',')[-1]
+	if stringList[0] == "HeaderCharaOid":
+		print("Oid type is HeaderCharaOid")
 
-	if boneList[0].name == "root":
-		boneList[0].name = stringList[1].split(':')[-1]
+		if stringList[2] != "1":
+			print("Expected Oid constant is not 1! Might break!")
 
-	print("Bone names %s parsed" % stringList[1])
+		for n, b in zip(stringList[3:], boneList):
+			b.name = n.split(',')[-1]
+
+		if boneList[0].name == "root":
+			boneList[0].name = stringList[1].split(':')[-1]
+
+		print("Bone names %s parsed" % stringList[1])
+	else:
+		print("Oid type is plain")
+		for n, b in zip(stringList, boneList):
+			b.name = n
+
 	return 1
+
+
 
 
 def parseG1MF(bs):
