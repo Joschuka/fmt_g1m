@@ -1,5 +1,6 @@
 from inc_noesis import *
 import os
+import subprocess
 from math import sqrt, sin, cos
 # import rpdb
 # debugger = rpdb.Rpdb()
@@ -21,9 +22,9 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 bLoadG1T = True				# Allow to choose a paired .g1t file
 bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
-bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
-bLoadG1AG2A = False			# Allow to choose a paired .g1a/.g2a file
-bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
+bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
+bLoadG1AG2A = True	 		# Allow to choose a paired .g1a/.g2a file
+bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 
 # =================================================================
 # Miscenalleous
@@ -33,7 +34,6 @@ def Align(bs, n):
 	value = bs.tell() % n
 	if (value):
 		bs.seek(n - value, 1)
-
 
 def registerNoesisTypes():
 	handle = noesis.register("Koei Tecmo KTGL Texture",".g1t")
@@ -132,6 +132,8 @@ class Mesh:
 		self.numVerts = 0
 		self.numIdx = 0
 		self.stride = 0
+		self.hasNoBoneIndice = False
+		self.hasNoBoneWeight = False
 		self.triangles = []
 		self.vertPosBuff = []
 		self.vertPosStride = None
@@ -363,9 +365,24 @@ def processChunkType9(bs):
 		g1m.lodList.append(lodMeshContainer)
 
 
-def parseG1MS(currentPosition, bs):
+def parseG1MS(currentPosition, bs, isDefault = True):
 	jointDataOffset = bs.readUInt()
 	conditionNumber = bs.readUShort()
+	if isDefault and conditionNumber == 0:
+		print("Skeleton layering detected...");
+		if g1sData is not None: # Skeleton Layer
+			bs2 = NoeBitStream(g1sData)
+			bs2.setEndian(endian)
+			A = [bs2.readUInt() for j in range(6)]
+			bs2.seek(A[3])
+			for i in range(A[5]):
+				currentPosition = bs2.tell()
+				chunkName = bs2.readInt()
+				chunkVersion = noeStrFromBytes(bs2.readBytes(4))
+				chunkSize = bs2.readInt()
+				if chunkName == 0x47314D53:
+					return parseG1MS(currentPosition, bs2, False)
+				bs2.seek(currentPosition + chunkSize)
 	bs.readUShort()
 	jointCount = bs.readUShort()
 	jointIndicesCount = bs.readUShort()
@@ -406,12 +423,14 @@ def parseG1MOid(bs):
 		string = noeStrFromBytes(bs.readBytes(length))
 		stringList.append(string)
 
-	if len(stringList) < 4:
+	if len(stringList) < 1:
 		print("Oid is too small!")
 		return 0
 
 	if stringList[0] == "HeaderCharaOid":
-		print("Oid type is HeaderCharaOid")
+		if len(stringList) < 4:
+			print("Oid is too small!")
+			return 0
 
 		if stringList[2] != "1":
 			print("Expected Oid constant is not 1! Might break!")
@@ -421,17 +440,12 @@ def parseG1MOid(bs):
 
 		if boneList[0].name == "root":
 			boneList[0].name = stringList[1].split(':')[-1]
-
-		print("Bone names %s parsed" % stringList[1])
 	else:
-		print("Oid type is plain")
 		for n, b in zip(stringList, boneList):
 			b.name = n
 
+	print("Bone names %s parsed" % stringList[1])
 	return 1
-
-
-
 
 def parseG1MF(bs):
 	Bytes = bs.read('30i')
@@ -439,7 +453,6 @@ def parseG1MF(bs):
 	g1m.meshCount = Bytes[13]
 	if (debug):
 		print("Mesh Count = " + str(g1m.meshCount))
-
 
 def parseG1MG(bs):
 	platform = noeStrFromBytes(bs.readBytes(4))  # NX_ for Switch for example
@@ -676,7 +689,7 @@ def parseNUNV(chunkVersion, bs):
 		bs.seek(currentPosition + subChunkSize)
 
 
-G1TG_FLAG_EXTRA_DATA = 0x1000
+G1TG_FLAG_EXTRA_DATA = 0x1001
 
 # =================================================================
 # The G1T parser, all info about textures is there
@@ -694,6 +707,7 @@ def processG1T(bs):
 	filesize = bs.readInt()
 	tableoffset = bs.readInt()
 	textureCount = bs.readInt()
+	platform = bs.readInt()
 	bs.seek(tableoffset)
 	offsetList = [bs.readUInt() for j in range(textureCount)]
 	for i in range(textureCount):
@@ -712,21 +726,25 @@ def processG1T(bs):
 		headerSize = 0x8
 		if flags & G1TG_FLAG_EXTRA_DATA == G1TG_FLAG_EXTRA_DATA:
 			extraDataSize = bs.readUInt()
-			if extraDataSize != 0xC:
-				print("Extra Texture Data is not 0xC Bytes! Might Die!")
+			if extraDataSize < 0xC or extraDataSize > 0x14:
+				print("Extra Texture Data is not between 0xC and 0x14 Bytes! Might Die!")
 			headerSize += extraDataSize
-			if (width==1):
+			bs.readUInt()
+			bs.readUInt()
+			if extraDataSize >= 0x10:
 				width = bs.readUInt()
-			else:
-				bs.read('i')
-			if (height==1):
+			if extraDataSize >= 0x14:
 				height = bs.readUInt()
-			else:
-				bs.read('i')
-		skipDecode = False
+		bSkipDecode = False
+		computedSize = -1
 		mortonWidth = 0
-		if (textureFormat == 0x1):
-			skipDecode = True
+		bRaw = False
+		if (textureFormat == 0x0):
+			computedSize = width * height * 4
+			bRaw = True
+			format == "r8 g8 b8 a8"	
+		elif (textureFormat == 0x1):
+			bSkipDecode = True
 			format == noesis.NOESISTEX_RGBA32
 		elif (textureFormat == 0x2):
 			format = noesis.NOESISTEX_DXT1
@@ -738,16 +756,31 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_DXT3
 		elif (textureFormat == 0x8):
 			format = noesis.NOESISTEX_DXT5
+		elif (textureFormat == 0xF):
+			computedSize = width * height 
+			bRaw = True
+			format = "a8"			
 		elif (textureFormat == 0x10):
 			format = noesis.NOESISTEX_DXT1
 			mortonWidth = 0x4
 		elif (textureFormat == 0x12):
 			format = noesis.NOESISTEX_DXT5
 			mortonWidth = 0x8
+		elif (textureFormat == 0x34):
+			computedSize = width * height * 2
+			bRaw = True
+			format = "b5 g6 r5"
+		elif (textureFormat == 0x36):
+			computedSize = width * height * 2 
+			bRaw = True
+			format = "a4 b4 g4 r4"
 		elif (textureFormat == 0x3C):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
+		elif (textureFormat == 0x56):
+			format = "ETC1"
+			computedSize = width * height // 2
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x5B):
@@ -764,20 +797,72 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
+		elif (textureFormat == 0x6F):
+			format = "ETC1"
+			computedSize = width * height
+			if i < len(offsetList) - 1:
+				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
 		else:
 			format = noesis.NOESISTEX_UNKNOWN
 			print("possible unknown format !")
 		textureName = str(i) + '.dds'
-		if i < textureCount - 1:			
-			textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
+		if computedSize >= 0:
+			textureData = bs.readBytes(computedSize)
 		else:
-			textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)
-		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
+			if i < textureCount - 1:			
+				textureData = bs.readBytes(offsetList[i + 1] - offsetList[i] - headerSize)
+				datasize = offsetList[i + 1] - offsetList[i] - headerSize
+			else:
+				textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)	
+				datasize = bs.dataSize - offsetList[i] - headerSize - tableoffset
 		print("texture %d/%d %dx%d (%X, %X)" % (i + 1, textureCount, width, height, textureFormat, len(textureData)))
+		if format == "ETC1":
+			pvrTex = (b'\x50\x56\x52\x03\x02\x00\x00\x00')
+			pvrTex += struct.pack("I", 0x6)            
+			pvrTex += (b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')            
+			pvrTex += struct.pack("I", width)
+			pvrTex += struct.pack("I", height)
+			pvrTex += (b'\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00')
+			pvrTex += textureData	
+			dstFilePath = noesis.getScenesPath() + "ktgl_etctex.pvr"
+			workingdir = noesis.getScenesPath()
+			newfile = open(dstFilePath, 'wb')
+			newfile.write(pvrTex)
+			newfile.close()
+			subprocess.Popen([noesis.getScenesPath() + 'PVR2PNG.bat', dstFilePath]).wait()
+			textureData = rapi.loadIntoByteArray(dstFilePath + ".png")
+			texture = rapi.loadTexByHandler(textureData, ".png")
+			texture.name = textureName
+			textureList.append(texture)
+			continue
+		if platform == 0x0B: #PS4
+			if format == noesis.NOESISTEX_DXT1:
+				imgFmt = b'\x30\x92'
+			elif format == noesis.NOESISTEX_DXT5:
+				imgFmt = b'\x50\x92'
+			gnfSize = datasize + 0x30
+			width = width-1 + 0xC000
+			height = ((height - 1) >> 2) + 0x7000
+			gnfHeader = b'\x47\x4E\x46\x20\x28\x00\x00\x00\x02\x01\x00\x00'
+			gnfHeader += bytearray(noePack("I", gnfSize))      
+			gnfHeader += b'\x00\x00\x00\x00\x01\x00'
+			gnfHeader += imgFmt                                
+			gnfHeader += bytearray(noePack("H", width))    
+			gnfHeader += bytearray(noePack("H", height))    
+			gnfHeader += b'\xAC\x0F\xD0\xA4\x01\xE0\x7F\x00\x00\x00\x00\x00\x00\00\x00\x00'
+			gnfHeader += bytearray(noePack("I", datasize))     
+			gnfHeader += textureData     
+			tex = rapi.loadTexByHandler(gnfHeader, ".gnf")
+			textureList.append(tex)
+			continue		
+		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
-		if not skipDecode:
+		if not bSkipDecode and not bRaw:
 			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
+			format = noesis.NOESISTEX_RGBA32
+		if bRaw:
+			textureData = rapi.imageDecodeRaw(textureData, width, height, format)
 			format = noesis.NOESISTEX_RGBA32
 		texture = NoeTexture(textureName, width, height, textureData, format)
 		textureList.append(texture)
@@ -851,19 +936,26 @@ def processG2A(bs, animCount, animName):
 	boneInfoSectionSize = bs.readBits(14)
 	timingSectionSize = bs.readInt()
 	entryCount = bs.readInt()
+	bIsNewVersion = False
 	if (version == "0500"):
 		reserved = bs.readInt()
-	boneInfoCount = boneInfoSectionSize // 4
+		bIsNewVersion = True
+	boneInfoCount = boneInfoSectionSize >> 2
 	tempPos = bs.tell()
+	lastId = 0
+	globalOffset = 0
 	for i in range(boneInfoCount):
 		bs.seek(tempPos + i * 4)
-		splineTypeCount = bs.readBits(2)
-		boneID = bs.readBits(10) // 4
-		boneTimingDataOffset = bs.readBits(20)
-		if (version == "0500"):
-			bs.seek(tempPos + boneInfoSectionSize + boneTimingDataOffset)
-		else:
-			bs.seek(tempPos + boneInfoSectionSize + boneTimingDataOffset // 4)
+		splineTypeCount = bs.readBits(4)
+		boneID = bs.readBits(8 if bIsNewVersion else 10)
+		boneTimingDataOffset = bs.readBits(20 if bIsNewVersion else 18)
+		if boneID < lastId:
+			globalOffset+=1
+		lastId = boneID
+		boneID += globalOffset * (256 if bIsNewVersion else 1024)
+		boneTimingDataOffset -= globalOffset
+		bs.seek(tempPos + boneInfoSectionSize + boneTimingDataOffset)
+	
 		rotNoeKeyFramedValues = []
 		posNoeKeyFramedValues = []
 		scaleNoeKeyFramedValues = []
@@ -1080,6 +1172,7 @@ def LoadRGBA(data, texList):
 
 def LoadModel(data, mdlList):
 	global g1m
+	global g1sData
 	global textureList
 	global boneList
 	global boneIDList
@@ -1173,22 +1266,6 @@ def LoadModel(data, mdlList):
 		else:
 			oidData = rapi.loadPairedFileOptional("skeleton name file", "Oid.bin")
 
-	if g1sData is not None:
-		bs2 = NoeBitStream(g1sData)
-		bs2.setEndian(endian)
-		A = [bs2.readUInt() for j in range(6)]
-		bs2.seek(A[3])
-		for i in range(A[5]):
-			currentPosition = bs2.tell()
-			chunkName = bs2.readInt()
-			chunkVersion = noeStrFromBytes(bs2.readBytes(4))
-			chunkSize = bs2.readInt()
-			if (chunkName == 0x47314D53 and hasNotParsedg1ms):
-				parseG1MS(currentPosition, bs2)
-				hasNotParsedg1ms = False
-				break
-			bs2.seek(currentPosition + chunkSize)
-
 	if oidData is not None:
 		bs3 = NoeBitStream(oidData)
 		parseG1MOid(bs3)
@@ -1219,7 +1296,7 @@ def LoadModel(data, mdlList):
 			print(chunkName + " unknown section !")
 		if (debug):
 			print(chunkName)
-		if (chunkName == 0x47314D53 and hasNotParsedg1ms):
+		if chunkName == 0x47314D53 and hasNotParsedg1ms:
 			parseG1MS(currentPosition, bs)
 			hasNotParsedg1ms = False
 		elif chunkName == 0x47314D47:
@@ -1349,7 +1426,6 @@ def LoadModel(data, mdlList):
 		spec = g1m.specList[info[1]]
 		mesh = meshList[info[1]]
 		mat = Material()
-		mesh.testCloth = False
 		diffID = g1m.textureList[info[6]][0][0]
 		if len(textureList) > 0:
 			mat.diffuse = textureList[diffID].name
@@ -1431,9 +1507,12 @@ def LoadModel(data, mdlList):
 							mesh.vertUVBuff.append(uv)
 					elif element.typeHandler in [0x0003,0x0300]:
 						clothStuff2 = NoeVec4([bs.readFloat() for i in range(4)])
-					# mesh.clothStuff2Buffer.append(clothStuff2)
+						mesh.clothStuff2Buffer.append(clothStuff2)
 					elif element.typeHandler in [0x0005,0x0500]:
 						clothStuff2 = NoeVec4([bs.readUByte() for i in range(4)])
+						mesh.clothStuff2Buffer.append(clothStuff2)
+					elif element.typeHandler in [0x0007,0x0700]:
+						clothStuff2 = NoeVec4([bs.readHalfFloat() for i in range(4)])
 						mesh.clothStuff2Buffer.append(clothStuff2)
 					else:
 						print("unknown uv type handler..." + str(element.typeHandler))
@@ -1489,16 +1568,19 @@ def LoadModel(data, mdlList):
 						bs.seek(currentPos + element.offset)
 						if element.typeHandler in [0x0003,0x0300]:
 							fog = NoeVec4([bs.readFloat() for i in range(4)])
-						# mesh.fogBuffer.append(fog)
+							mesh.fogBuffer.append(fog)
 						elif element.typeHandler in [0x0005,0x0500]:
 							fog = NoeVec4([bs.readUByte() for i in range(4)])
 							mesh.fogBuffer.append(fog)
+						elif element.typeHandler in [0x0007,0x0700]:
+							fog = NoeVec4([bs.readHalfFloat() for i in range(4)])
+							mesh.fogBuffer.append(fog)
 						elif element.typeHandler in [0x0009,0x0900]:
 							fog = NoeVec4([bs.readFloat() for i in range(4)])
-						# mesh.fogBuffer.append(fog)
+							mesh.fogBuffer.append(fog)
 						elif element.typeHandler in [0x000D,0x0D00]:
 							fog = NoeVec4([bs.readUByte() / 255 for i in range(4)])
-						# mesh.fogBuffer.append(fog)
+							mesh.fogBuffer.append(fog)
 						else:
 							print("unknown fog type handler " + str(element.typeHandler))
 						if (n != info[11] - 1):
@@ -1558,16 +1640,19 @@ def LoadModel(data, mdlList):
 					bs.seek(currentPos + element.offset)
 					if element.typeHandler in [0x0002,0x0200]:
 						clothStuff1 = NoeVec4([bs.readFloat() for i in range(4)])
-					# mesh.clothStuff1Buffer.append(clothStuff1)
+						mesh.clothStuff1Buffer.append(clothStuff1)
 					elif element.typeHandler in [0x0003,0x0300]:
 						clothStuff1 = NoeVec4([bs.readFloat() for i in range(4)])
 						mesh.clothStuff1Buffer.append(clothStuff1)
 					elif element.typeHandler in [0x0005,0x0500]:
 						clothStuff1 = NoeVec4([bs.readUByte() for i in range(4)])
 						mesh.clothStuff1Buffer.append(clothStuff1)
+					elif element.typeHandler in [0x0007,0x0700]:
+						clothStuff1 = NoeVec4([bs.readHalfFloat() for i in range(4)])
+						mesh.clothStuff1Buffer.append(clothStuff1)
 					elif element.typeHandler in [0x0009,0x0900]:
 						clothStuff1 = NoeVec4([bs.readFloat() for i in range(4)])
-					# mesh.clothStuff1Buffer.append(clothStuff1)
+						mesh.clothStuff1Buffer.append(clothStuff1)
 					else:
 						print("unknown psize type handler " + str(element.typeHandler))
 					if (n != info[11] - 1):
@@ -1602,6 +1687,9 @@ def LoadModel(data, mdlList):
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x000B,0x0B00]:
 							weight = NoeVec4([bs.readHalfFloat() for i in range(4)])
+							mesh.skinWeightList.append(weight)
+						elif element.typeHandler in [0x000D,0x0D00]:
+							weight = NoeVec4([bs.readUByte() / 255 for i in range(4)])
 							mesh.skinWeightList.append(weight)
 						else:
 							print("unknown weight type handler... " + str(element.typeHandler))
@@ -1657,11 +1745,15 @@ def LoadModel(data, mdlList):
 							print("unknown indices type handler... " + str(element.typeHandler))
 						if (n != info[11] - 1):
 							bs.seek(currentPos + buffer.strideSize)
-		if (len(boneList) > 0 and len(mesh.oldSkinIndiceList) == 0):
-			mesh.oldSkinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
-			mesh.skinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
-			mesh.skinWeightList = [NoeVec4([1, 0, 0, 0]) for n in range(info[11])]
-			mesh.testCloth = True
+		if len(boneList) > 0 and (len(mesh.oldSkinIndiceList) == 0 or len(mesh.skinWeightList) == 0):
+			if len(mesh.oldSkinIndiceList) == 0:
+				mesh.oldSkinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
+				mesh.skinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
+				mesh.hasNoBoneIndice = True
+			if len(mesh.skinWeightList) == 0:
+				mesh.skinWeightList = [NoeVec4([1, 0, 0, 0]) for n in range(info[11])]
+				mesh.hasNoBoneWeight = True
+			
 		indiceBuffer = g1m.indiceBufferList[info[7]]
 		bs.seek(indiceBuffer.offset + info[12] * indiceBuffer.strideSize)
 		mat.IDStart = info[12]
@@ -1703,6 +1795,7 @@ def LoadModel(data, mdlList):
 		KeepDrawing = False
 		print("Skeleton g1m")
 	print("Adding submeshes")
+	rootFixFlag = False
 	for i, mesh in enumerate(meshList):
 		if not KeepDrawing:
 			break
@@ -1719,10 +1812,14 @@ def LoadModel(data, mdlList):
 								[mesh.vertPosBuff[v][0], mesh.vertPosBuff[v][1], mesh.vertPosBuff[v][2], 0]) * quat1
 							mesh.vertPosBuff[v] = boneList[index].getMatrix()[3] + NoeVec3(
 								[quat2[0], quat2[1], quat2[2]])
+							rootFixFlag = True
+							mesh.skinWeightList[v] = NoeVec4()
+							mesh.skinIndiceList[v] = NoeVec4()
 		if (isClothType1List[currentMesh] and (bComputeCloth or noesis.optWasInvoked("-g1mcloth"))):
 			nunoMap = clothMap[ID2s[currentMesh]]
 			count = mesh.vertCount
 			if (len(mesh.binormalBuffer) > 0):
+				rootFixFlag = True
 				for v in range(count):
 					if (mesh.binormalBuffer[v] == NoeVec4()):
 						mesh.vertPosBuff[v] = boneList[
@@ -1782,6 +1879,8 @@ def LoadModel(data, mdlList):
 			break
 		for v in range(mesh.vertCount):
 			vertex = mesh.vertPosBuff[v]
+			if(not rootFixFlag):
+				vertex += boneList[0].getMatrix()[3]
 			for k in range(3):
 				finalVertexPosBuffer += noePack(endianC + 'f', vertex[k])
 		# Normals
@@ -1807,13 +1906,13 @@ def LoadModel(data, mdlList):
 		# finalColorBuffer+=noePack(endianC + 'f',vertex[k])
 		
 		# Weights
-		if (len(mesh.skinWeightList) > 0):
+		if not mesh.hasNoBoneWeight:
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinWeightList[v]
 				for k in range(4):
 					finalWeightList += noePack(endianC + 'f', vertex[k])
 		# Bone indices
-		if (len(mesh.skinIndiceList) > 0):
+		if not mesh.hasNoBoneIndice:
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinIndiceList[v]
 				for k in range(4):
@@ -1826,8 +1925,9 @@ def LoadModel(data, mdlList):
 		# if(len(mesh.tangentBuffer)>0):
 		# rapi.rpgBindTangentBuffer(finalTangentBuffer,noesis.RPGEODATA_FLOAT,16)
 
-		if len(mesh.skinIndiceList) > 0 and len(mesh.skinWeightList) > 0:
+		if not mesh.hasNoBoneIndice:
 			rapi.rpgBindBoneIndexBuffer(finalIndiceList, noesis.RPGEODATA_USHORT, 8, 4)
+		if not mesh.hasNoBoneWeight:
 			rapi.rpgBindBoneWeightBuffer(finalWeightList, noesis.RPGEODATA_FLOAT, 16, 4)
 
 		for j, mat in enumerate(mesh.matList):
@@ -1842,11 +1942,11 @@ def LoadModel(data, mdlList):
 			matList.append(material)
 			if (currentMesh >= submeshesCount):
 				KeepDrawing = False
-
 			print("submesh " + str(currentMesh + 1) + "/" + str(submeshesCount + 1))
 			if not bDisplayCloth and (isClothType2List[currentMesh] or isClothType1List[currentMesh]):
 				currentMesh += 1
 				continue
+			rootFixFlag = False
 			currentMesh += 1
 			if mat.idxType == 1: rapi.rpgCommitTriangles(mesh.idxBuff[mat.IDStart:mat.IDStart + mat.IDCount],
 														 noesis.RPGEODATA_UBYTE, mat.IDCount, mat.primType, 1)
