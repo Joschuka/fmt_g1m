@@ -688,9 +688,6 @@ def parseNUNV(chunkVersion, bs):
 				print("Unsupported NUNVSubChunk")
 		bs.seek(currentPosition + subChunkSize)
 
-
-G1TG_FLAG_EXTRA_DATA = 0x1001
-
 # =================================================================
 # The G1T parser, all info about textures is there
 # =================================================================
@@ -720,11 +717,12 @@ def processG1T(bs):
 		bs.readUByte()
 		bs.readUByte()
 		bs.readUByte()
-		flags = bs.readUShort()
+		bs.readUByte()
+		extra_header_version = bs.readUByte()
 		height = pow(2, int(dxdy>> 4))
 		width = pow(2, dxdy & 0x0F)
 		headerSize = 0x8
-		if flags & G1TG_FLAG_EXTRA_DATA == G1TG_FLAG_EXTRA_DATA:
+		if extra_header_version > 0:
 			extraDataSize = bs.readUInt()
 			if extraDataSize < 0xC or extraDataSize > 0x14:
 				print("Extra Texture Data is not between 0xC and 0x14 Bytes! Might Die!")
