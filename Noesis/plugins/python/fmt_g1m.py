@@ -173,8 +173,14 @@ class Material:
 		self.IDCount = 0
 		self.idxType = None
 		self.primType = None
-		self.diffuse = ''
+		self.diffuse = 'default'
 
+class Texture:
+	def __init__(self):
+		self.id = 0
+		self.layer = 0
+		self.type = 0
+		self.subtype = 0
 
 class LOD:
 	def __init__(self):
@@ -229,7 +235,15 @@ def processChunkType2(bs):
 		bs.read('i')  # 0, 1 or -1
 		List = []
 		for j in range(textureCount):
-			List.append([bs.readUShort() for j in range(6)])
+			texture = Texture()
+			texture.id = bs.readUShort()
+			texture.layer = bs.readUShort()
+			texture.type = bs.readUShort()
+			texture.subtype = bs.readUShort()
+			bs.readUShort()
+			bs.readUShort()
+			List.append(texture)
+			print("Found Texture Material Info: (%d, %d, %d, %d)" % (texture.id, texture.layer, texture.type, texture.subtype))
 		g1m.textureList.append(List)
 
 
@@ -726,6 +740,7 @@ def processG1T(bs):
 		headerSize = 0x8
 		if extra_header_version > 0:
 			extraDataSize = bs.readUInt()
+			print("Extra Header found: Size %d, Version %d" % (extraDataSize, extra_header_version))
 			if extraDataSize < 0xC or extraDataSize > 0x14:
 				print("Extra Texture Data is not between 0xC and 0x14 Bytes! Might Die!")
 			headerSize += extraDataSize
@@ -735,7 +750,6 @@ def processG1T(bs):
 				width = bs.readUInt()
 			if extraDataSize >= 0x14:
 				height = bs.readUInt()
-		bSkipDecode = False
 		computedSize = -1
 		mortonWidth = 0
 		bRaw = False
@@ -744,7 +758,7 @@ def processG1T(bs):
 			bRaw = True
 			format == "r8 g8 b8 a8"	
 		elif (textureFormat == 0x1):
-			bSkipDecode = True
+			bRaw = True
 			format = noesis.NOESISTEX_RGBA32
 		elif (textureFormat == 0x2):
 			format = noesis.NOESISTEX_DXT1
@@ -815,7 +829,9 @@ def processG1T(bs):
 			else:
 				textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)	
 				datasize = bs.dataSize - offsetList[i] - headerSize - tableoffset
-		print("texture %d/%d %dx%d (%X, %X)" % (i + 1, textureCount, width, height, textureFormat, len(textureData)))
+		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform))
+		if platform == 2:
+			textureData = rapi.swapEndianArray(textureData, 2)
 		if format == "ETC1":
 			pvrTex = (b'\x50\x56\x52\x03\x02\x00\x00\x00')
 			pvrTex += struct.pack("I", 0x6)            
@@ -854,15 +870,21 @@ def processG1T(bs):
 			gnfHeader += textureData     
 			tex = rapi.loadTexByHandler(gnfHeader, ".gnf")
 			textureList.append(tex)
-			continue		
+			continue
 		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
-			textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
-		if not bSkipDecode and not bRaw:
-			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
-			format = noesis.NOESISTEX_RGBA32
+			if platform == 2:
+				if bRaw:
+					textureData = rapi.imageUntile360Raw(textureData, width, height, mortonWidth)
+				else:
+					textureData = rapi.imageUntile360DXT(textureData, width, height, mortonWidth * 2)
+			else:
+				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
 		if bRaw:
 			textureData = rapi.imageDecodeRaw(textureData, width, height, format)
+			format = noesis.NOESISTEX_RGBA32
+		else:
+			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
 			format = noesis.NOESISTEX_RGBA32
 		texture = NoeTexture(textureName, width, height, textureData, format)
 		textureList.append(texture)
@@ -1552,13 +1574,18 @@ def LoadModel(data, mdlList):
 		spec = g1m.specList[info[1]]
 		mesh = meshList[info[1]]
 		mat = Material()
-		diffID = g1m.textureList[info[6]][0][0]
-		if len(textureList) > 0:
-			mat.diffuse = textureList[diffID].name
-		else:
-			imgPath = os.path.dirname(rapi.getInputName()) + os.sep + str(diffID) + '.dds'
-			if os.path.exists(imgPath) == True:
-				mat.diffuse = imgPath
+		diffID = -1
+		if info[6] < len(g1m.textureList):
+			for textureInfo in g1m.textureList[info[6]]:
+				if textureInfo.type == 1 and textureInfo.layer == 0:
+					diffID = textureInfo.id
+		if diffID > -1:
+			if diffID < len(textureList):
+				mat.diffuse = textureList[diffID].name
+			else:
+				imgPath = os.path.dirname(rapi.getInputName()) + os.sep + str(diffID) + '.dds'
+				if os.path.exists(imgPath) == True:
+					mat.diffuse = imgPath
 		for m in range(spec.count):
 			element = spec.list[m]
 			# Vertex positions
