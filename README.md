@@ -55,6 +55,10 @@ Enable choosing a g1a/g2a file which contains animation. Choosing a wrong one wi
 
 Enable choosing a folder from which all g1a/g2a files will be loaded.
 
+* bLoadG1H
+
+Enable choosing a folder from which contains morph targets/shapekeys. You can choose the offset between these with the G1HOffset parameter.
+
 ### Model merging
 
 If you want to combine models, follow these steps :
