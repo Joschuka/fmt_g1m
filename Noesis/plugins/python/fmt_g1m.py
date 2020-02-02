@@ -185,6 +185,8 @@ class Texture:
 		# For example when type = 0x2, and subtype = 0x19, it's usually Packed PBR
 		# [0x2] 0x19 R = Specular, G = Smoothness, B = Metalness, A = Unused
 		self.subtype = 0
+		self.tilemodex = 0
+		self.tilemodey = 0
 		self.key = "UNKNOWN_0"
 
 class LOD:
@@ -246,8 +248,8 @@ def processChunkType2(bs):
 			texture.layer = bs.readUShort()
 			texture.type = bs.readUShort()
 			texture.subtype = bs.readUShort()
-			bs.readUShort()
-			bs.readUShort()
+			texture.tilemodex = bs.readUShort()
+			texture.tilemodey = bs.readUShort()
 			List.append(texture)
 			texture.key = G1MGM_MATERIAL_KEYS[texture.type] if texture.type < len(G1MGM_MATERIAL_KEYS) else None
 			if texture.key == None:
