@@ -174,6 +174,7 @@ class Material:
 		self.idxType = None
 		self.primType = None
 		self.diffuse = 'default'
+		self.normal = 'default'
 
 class Texture:
 	def __init__(self):
@@ -181,6 +182,7 @@ class Texture:
 		self.layer = 0
 		self.type = 0
 		self.subtype = 0
+		self.key = "UNKNOWN_0"
 
 class LOD:
 	def __init__(self):
@@ -215,6 +217,7 @@ class G1M:
 		self.matList = []
 		self.textureList = []
 
+G1MGM_MATERIAL_KEYS = [None, "COLOR", "COMBINED_PBR_BGR", "NORMAL", None, "DIRT"]
 
 # =================================================================
 # G1M's chunks and sections parsers
@@ -243,7 +246,10 @@ def processChunkType2(bs):
 			bs.readUShort()
 			bs.readUShort()
 			List.append(texture)
-			print("Found Texture Material Info: (%d, %d, %d, %d)" % (texture.id, texture.layer, texture.type, texture.subtype))
+			texture.key = G1MGM_MATERIAL_KEYS[texture.type] if texture.type < len(G1MGM_MATERIAL_KEYS) else None
+			if texture.key == None:
+				texture.key = "UNKNOWN_%X" % (texture.type)
+			print("Found Texture Material Info: (%d, %d, %d, %d, %s)" % (texture.id, texture.layer, texture.type, texture.subtype, texture.key))
 		g1m.textureList.append(List)
 
 
@@ -1295,7 +1301,7 @@ def LoadRGBA(data, texList):
 	for tex in textureList:
 		texList.append(tex)
 	return 1
-	
+
 # =================================================================
 # Noesis load model
 # =================================================================
@@ -1320,6 +1326,7 @@ def LoadModel(data, mdlList):
 	global KeepDrawing
 	global endian
 	global morphMap
+	global G1MGM_MATERIAL_KEYS
 	debug = False
 	g1tData = None
 	g1sData = None
@@ -1575,10 +1582,13 @@ def LoadModel(data, mdlList):
 		mesh = meshList[info[1]]
 		mat = Material()
 		diffID = -1
+		normID = -1
 		if info[6] < len(g1m.textureList):
 			for textureInfo in g1m.textureList[info[6]]:
-				if textureInfo.type == 1 and textureInfo.layer == 0:
+				if textureInfo.key == "COLOR" and textureInfo.layer == 0 and diffID == -1:
 					diffID = textureInfo.id
+				if textureInfo.key == "NORMAL" and normID == -1:
+					normID = textureInfo.id
 		if diffID > -1:
 			if diffID < len(textureList):
 				mat.diffuse = textureList[diffID].name
@@ -1586,6 +1596,13 @@ def LoadModel(data, mdlList):
 				imgPath = os.path.dirname(rapi.getInputName()) + os.sep + str(diffID) + '.dds'
 				if os.path.exists(imgPath) == True:
 					mat.diffuse = imgPath
+		if normID > -1:
+			if normID < len(textureList):
+				mat.normal = textureList[normID].name
+			else:
+				imgPath = os.path.dirname(rapi.getInputName()) + os.sep + str(normID) + '.dds'
+				if os.path.exists(imgPath) == True:
+					mat.normal = imgPath
 		for m in range(spec.count):
 			element = spec.list[m]
 			# Vertex positions
@@ -2096,7 +2113,12 @@ def LoadModel(data, mdlList):
 			meshName = 'submesh_' + str(currentMesh)
 			material = NoeMaterial(meshName, "")
 			if len(textureList) > 0:
-				material.setTexture(mat.diffuse)
+				if diffID > -1:
+					print("Found Diffuse Texture %s" % (mat.diffuse))
+					material.setTexture(mat.diffuse)
+				if normID > -1:
+					print("Found Normal Texture %s" % (mat.normal))
+					material.setNormalTexture(mat.normal)
 			else:
 				matName = mat.diffuse
 			rapi.rpgSetMaterial(meshName)
