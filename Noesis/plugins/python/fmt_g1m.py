@@ -181,6 +181,9 @@ class Texture:
 		self.id = 0
 		self.layer = 0
 		self.type = 0
+		# Usually defines how a texture is packed.
+		# For example when type = 0x2, and subtype = 0x19, it's usually Packed PBR
+		# [0x2] 0x19 R = Specular, G = Smoothness, B = Metalness, A = Unused
 		self.subtype = 0
 		self.key = "UNKNOWN_0"
 
@@ -217,7 +220,7 @@ class G1M:
 		self.matList = []
 		self.textureList = []
 
-G1MGM_MATERIAL_KEYS = [None, "COLOR", "COMBINED_PBR_BGR", "NORMAL", None, "DIRT"]
+G1MGM_MATERIAL_KEYS = [None, "COLOR", "SHADING", "NORMAL", None, "DIRT"]
 
 # =================================================================
 # G1M's chunks and sections parsers
@@ -758,14 +761,12 @@ def processG1T(bs):
 				height = bs.readUInt()
 		computedSize = -1
 		mortonWidth = 0
-		bRaw = False
 		if (textureFormat == 0x0):
 			computedSize = width * height * 4
-			bRaw = True
 			format == "r8 g8 b8 a8"	
 		elif (textureFormat == 0x1):
-			bRaw = True
-			format = noesis.NOESISTEX_RGBA32
+			computedSize = width * height * 4
+			format == "r8 g8 b8 a8"	
 		elif (textureFormat == 0x2):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x3):
@@ -778,7 +779,6 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_DXT5
 		elif (textureFormat == 0xF):
 			computedSize = width * height 
-			bRaw = True
 			format = "a8"			
 		elif (textureFormat == 0x10):
 			format = noesis.NOESISTEX_DXT1
@@ -788,11 +788,9 @@ def processG1T(bs):
 			mortonWidth = 0x8
 		elif (textureFormat == 0x34):
 			computedSize = width * height * 2
-			bRaw = True
 			format = "b5 g6 r5"
 		elif (textureFormat == 0x36):
 			computedSize = width * height * 2 
-			bRaw = True
 			format = "a4 b4 g4 r4"
 		elif (textureFormat == 0x3C):
 			format = noesis.NOESISTEX_DXT1
@@ -877,6 +875,8 @@ def processG1T(bs):
 			tex = rapi.loadTexByHandler(gnfHeader, ".gnf")
 			textureList.append(tex)
 			continue
+		
+		bRaw = type(format) == str
 		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
