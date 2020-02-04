@@ -43,6 +43,9 @@ def registerNoesisTypes():
 	handle = noesis.register("Koei Tecmo KTGL Model", ".g1m")
 	noesis.setHandlerTypeCheck(handle, CheckModelType)
 	noesis.setHandlerLoadModel(handle, LoadModel)
+	handle = noesis.register("Koei Tecmo KTGL Screen Layout Texture", ".kslt")
+	noesis.setHandlerTypeCheck(handle, CheckScreenLayoutTextureType)
+	noesis.setHandlerLoadRGBA(handle, LoadScreenLayoutTexture)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
@@ -56,10 +59,12 @@ def registerNoesisTypes():
 		noesis.logPopup()
 	return 1
 
-HEADER_ID1 = 0x47314d5f  
-HEADER_ID2 = 0x5F4D3147  
-HEADER_ID3 = 0x47543147 
-HEADER_ID4 = 0x47315447
+HEADER_G1M_BE = 0x47314D5F 
+HEADER_G1M_LE = 0x5F4D3147  
+HEADER_G1T_BE = 0x47543147 
+HEADER_G1T_LE = 0x47315447
+HEADER_KSLT_BE = 0x544C534B
+HEADER_KSLT_LE = 0x4B534C54
 
 # =================================================================
 # Noesis check type
@@ -72,7 +77,7 @@ def CheckModelType(data):
 		return 0
 	bs.seek(0, NOESEEK_ABS)
 	id = bs.readInt()
-	if id not in [HEADER_ID1,HEADER_ID2]:
+	if id not in [HEADER_G1M_LE,HEADER_G1M_BE]:
 		print("Header not recognized")
 		return 0
 	return 1
@@ -84,7 +89,19 @@ def CheckTextureType(data):
 		return 0
 	bs.seek(0, NOESEEK_ABS)
 	id = bs.readInt()
-	if id not in [HEADER_ID3,HEADER_ID4]:
+	if id not in [HEADER_G1T_LE,HEADER_G1T_BE]:
+		print("Header not recognized")
+		return 0
+	return 1
+
+def CheckScreenLayoutTextureType(data):
+	bs = NoeBitStream(data)
+	if len(data) < 64:
+		print("Invalid kslt file, too small")
+		return 0
+	bs.seek(0, NOESEEK_ABS)
+	id = bs.readInt()
+	if id not in [HEADER_KSLT_LE,HEADER_KSLT_BE]:
 		print("Header not recognized")
 		return 0
 	return 1
@@ -93,7 +110,7 @@ def ValidateInputDirectory(inVal):
 	if os.path.isdir(inVal) is not True:
 		return "'" + inVal + "' is not a valid directory."
 	return None
-	
+
 # =================================================================
 # VertexSpecs and Spec classes, used to store all attributes and values
 # =================================================================
@@ -113,8 +130,6 @@ class Spec:
 		self.list = []
 
 # =================================================================
-
-
 # Buffer class, used for vertex, index etc buffers
 # =================================================================
 
@@ -722,9 +737,9 @@ def processG1T(bs):
 	if bLog:
 		noesis.logPopup()
 	magic = bs.read('<i')[0]
-	if (magic == 0x47543147):
+	if (magic == HEADER_G1T_BE):
 		endiang1t = NOE_BIGENDIAN
-	elif (magic == 0x47315447):
+	elif (magic == HEADER_G1T_LE):
 		endiang1t = NOE_LITTLEENDIAN
 	bs.setEndian(endiang1t)
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -897,6 +912,120 @@ def processG1T(bs):
 		texture = NoeTexture(textureName, width, height, textureData, format)
 		textureList.append(texture)
 	print("G1T file parsed")
+
+# =================================================================
+# KSLT Screen Layout Texture
+# =================================================================
+
+def processKSLT(bs):
+	if bLog:
+		noesis.logPopup()
+	magic = bs.read('<i')[0]
+	if magic == HEADER_KSLT_BE:
+		endiankslt = NOE_BIGENDIAN
+	elif magic == HEADER_KSLT_LE:
+		endiankslt = NOE_LITTLEENDIAN
+	bs.setEndian(endiankslt)
+	version = noeStrFromBytes(bs.readBytes(4))
+	print("KSLT Version %s" % version)
+	count = bs.readInt()
+	filesize = bs.readInt()
+	pointerTablePointer = bs.readInt()
+	nameTableSize = bs.readInt()
+	nameTableCount = bs.readInt()
+	print("Found %d KSLT textures" % (count))
+	bs.seek(0x40 + pointerTablePointer)
+	pointerTable = []
+	for i in range(count):
+		pointerTable.append(bs.readInt())
+		bs.readInt()
+		bs.readInt()
+		bs.readInt()
+		bs.readInt()
+	bs.seek(0x40 + pointerTablePointer + 0x14 * count)
+	names = []
+	if nameTableSize > 0 and nameTableCount > 0:
+		for i in range(nameTableCount):
+			names.append(bs.readString())
+	for i in range(count):
+		bs.seek(pointerTable[i])
+		textureFormat = bs.readInt()
+		width = bs.readUShort()
+		height = bs.readUShort()
+		u1 = bs.readInt()
+		u2 = bs.readInt()
+		u3 = bs.readInt()
+		u4 = bs.readInt()
+		u5 = bs.readInt()
+		size = bs.readInt()
+		u6 = bs.readInt()
+		u7 = bs.readInt()
+		u8 = bs.readInt()
+		u9 = bs.readInt()
+		u10 = bs.readInt()
+		u11 = bs.readInt()
+		u12 = bs.readInt()
+		u13 = bs.readInt()
+		u14 = bs.readInt()
+		u15 = bs.readInt()
+		format = None
+		mortonWidth = 0
+		if textureFormat == 0:
+			format = "b8 g8 r8 a8"
+		elif textureFormat == 1:
+			format = "r8 g8 b8 a8"
+		elif textureFormat == 3:
+			format = noesis.FOURCC_BC3
+		elif textureFormat == 6:
+			format = noesis.FOURCC_BC3
+		else:
+			print("Unknown format %d, aborting" % textureFormat)
+			return 0
+		textureData = bs.readBytes(size)
+		print("Loaded Texture %d of %d; %dx%x; Format %X; Size %X" % (i + 1, count, width, height, textureFormat, size))
+		textureName = str(i)
+		bRaw = type(format) == str
+		if len(names) > i:
+			textureName = names[i]
+		if textureFormat == 6 and not bRaw: #PS4
+			if format == noesis.FOURCC_BC1:
+				imgFmt = b'\x30\x92'
+			elif format == noesis.FOURCC_BC3:
+				imgFmt = b'\x50\x92'
+			gnfSize = size + 0x30
+			width = width-1 + 0xC000
+			height = ((height - 1) >> 2) + 0x7000
+			gnfHeader = b'\x47\x4E\x46\x20\x28\x00\x00\x00\x02\x01\x00\x00'
+			gnfHeader += bytearray(noePack("I", gnfSize))      
+			gnfHeader += b'\x00\x00\x00\x00\x01\x00'
+			gnfHeader += imgFmt                                
+			gnfHeader += bytearray(noePack("H", width))    
+			gnfHeader += bytearray(noePack("H", height))    
+			gnfHeader += b'\xAC\x0F\xD0\xA4\x01\xE0\x7F\x00\x00\x00\x00\x00\x00\00\x00\x00'
+			gnfHeader += bytearray(noePack("I", size))     
+			gnfHeader += textureData     
+			tex = rapi.loadTexByHandler(gnfHeader, ".gnf")
+			tex.name = textureName
+			textureList.append(tex)
+			continue
+		if mortonWidth > 0:
+			if platform == 2:
+				if bRaw:
+					textureData = rapi.imageUntile360Raw(textureData, width, height, mortonWidth)
+				else:
+					textureData = rapi.imageUntile360DXT(textureData, width, height, mortonWidth * 2)
+			else:
+				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
+		if bRaw:
+			textureData = rapi.imageDecodeRaw(textureData, width, height, format)
+			format = noesis.NOESISTEX_RGBA32
+		else:
+			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
+			format = noesis.NOESISTEX_RGBA32
+		texture = NoeTexture(textureName + '.dds', width, height, textureData, format)
+		textureList.append(texture)
+	return 1
+
 # =================================================================
 # G1H Morph Targets 
 # =================================================================
@@ -1064,14 +1193,19 @@ def function2(v):
 	q[3] = c
 	return q
 
-def processG2A(bs, animCount, animName):
+def processG2A(bs, animCount, animName, endian):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
 	filesize = bs.readInt()
 	framerate = bs.readFloat()
-	animationLength = bs.readBits(18)
-	boneInfoSectionSize = bs.readBits(14)
+	if(endian == NOE_LITTLEENDIAN):
+		animationLength = bs.readBits(18)
+		boneInfoSectionSize = bs.readBits(14)
+	else:
+		packedInfo = bs.readUInt()
+		animationLength = packedInfo >> 0x3FFF # not sure
+		boneInfoSectionSize = (packedInfo&0x3FFF) << 2
 	timingSectionSize = bs.readInt()
 	entryCount = bs.readInt()
 	bIsNewVersion = False
@@ -1084,14 +1218,23 @@ def processG2A(bs, animCount, animName):
 	globalOffset = 0
 	for i in range(boneInfoCount):
 		bs.seek(tempPos + i * 4)
-		splineTypeCount = bs.readBits(4)
-		boneID = bs.readBits(8 if bIsNewVersion else 10)
-		boneTimingDataOffset = bs.readBits(20 if bIsNewVersion else 18)
-		if boneID < lastId:
-			globalOffset+=1
-		lastId = boneID
-		boneID += globalOffset * (256 if bIsNewVersion else 1024)
-		boneTimingDataOffset -= globalOffset
+		if(endian == NOE_LITTLEENDIAN):
+			splineTypeCount = bs.readBits(4)
+			boneID = bs.readBits(8 if bIsNewVersion else 10)
+			boneTimingDataOffset = bs.readBits(20 if bIsNewVersion else 18)
+			if boneID < lastId:
+				globalOffset+=1
+			lastId = boneID
+			boneID += globalOffset * (256 if bIsNewVersion else 1024)
+			boneTimingDataOffset -= globalOffset
+		else:
+			packedInfo = bs.readUInt()
+			splineTypeCount = packedInfo >> 28
+			boneID = (packedInfo >> 16) & 0xFFF
+			boneTimingDataOffset = (packedInfo & 0xFFFF) << 2
+			if boneID < lastId:
+				globalOffset+=1
+			lastId = boneID		
 		bs.seek(tempPos + boneInfoSectionSize + boneTimingDataOffset)
 	
 		rotNoeKeyFramedValues = []
@@ -1176,7 +1319,7 @@ def function3(chanValues, chanTimes, indexr, componentCount):
 			allvalues[u].append(value)
 	return [allvalues, alltimes]
 
-def processG1A(bs, animCount, animName):
+def processG1A(bs, animCount, animName, endian):
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1300,6 +1443,19 @@ def LoadRGBA(data, texList):
 	textureList = []
 	g1tBs = NoeBitStream(data)
 	processG1T(g1tBs)
+	for tex in textureList:
+		texList.append(tex)
+	return 1
+
+# =================================================================
+# Noesis load screen layout texture
+# =================================================================
+
+def LoadScreenLayoutTexture(data, texList):
+	global textureList
+	textureList = []
+	ksltBs = NoeBitStream(data)
+	processKSLT(ksltBs)
 	for tex in textureList:
 		texList.append(tex)
 	return 1
@@ -1492,9 +1648,9 @@ def LoadModel(data, mdlList):
 				gaBs.seek(0)
 				tempFrame = -1
 				if magic == 0x4732415F:
-					tempframe = processG2A(gaBs, animCount, animName)
+					tempframe = processG2A(gaBs, animCount, animName, endian)
 				elif magic == 0x4731415F:
-					tempframe = processG1A(gaBs, animCount, animName)
+					tempframe = processG1A(gaBs, animCount, animName, endian)
 				if tempframe != -1:
 					globalFramerate = tempframe
 					animCount += 1
