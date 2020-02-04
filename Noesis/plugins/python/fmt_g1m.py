@@ -1985,8 +1985,6 @@ def LoadModel(data, mdlList):
 							mesh.vertPosBuff[v] = boneList[index].getMatrix()[3] + NoeVec3(
 								[quat2[0], quat2[1], quat2[2]])
 							rootFixFlag = True
-							mesh.skinWeightList[v] = NoeVec4()
-							mesh.skinIndiceList[v] = NoeVec4()
 		if (isClothType1List[currentMesh] and (bComputeCloth or noesis.optWasInvoked("-g1mcloth"))):
 			nunoMap = clothMap[ID2s[currentMesh]]
 			count = mesh.vertCount
