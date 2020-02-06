@@ -1645,7 +1645,7 @@ def LoadModel(data, mdlList):
 				gaBs.setEndian(endian)
 				magic = gaBs.readInt()
 				gaBs.seek(0)
-				tempFrame = -1
+				tempframe = -1
 				if magic == 0x4732415F:
 					tempframe = processG2A(gaBs, animCount, animName, endian)
 				elif magic == 0x4731415F:
