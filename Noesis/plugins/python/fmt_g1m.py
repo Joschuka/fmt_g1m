@@ -23,7 +23,7 @@ bLoadG1T = True			# Allow to choose a paired .g1t file
 bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
 bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
-bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
+bLoadG1AG2A = True	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 bLoadG1H = False				#Allow to choose a paired .g1h file
 G1HOffset = 20				#Offset between different morph targets
@@ -1199,6 +1199,7 @@ def function2(v):
 	return q
 
 def processG2A(bs, animCount, animName, endian):
+	bCompatible = True
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1288,11 +1289,14 @@ def processG2A(bs, animCount, animName, endian):
 				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3)
 			keyFramedBoneList.append(actionBone)
 		else:
-			print("G2A Animation not compatible with the skeleton")
-			return -1
+			bCompatible = False
+			continue
 	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, framerate)
 	animationList.append(anim)
-	print("G2A Animation " + str(animCount + 1) + " loaded")
+	if (bCompatible):
+		print("G2A Animation " + str(animCount + 1) + " loaded")
+	else:
+		print("G2A Animation " + str(animCount + 1) + " loaded but may not be compatible !")
 	return framerate
 
 # =================================================================
@@ -1325,6 +1329,7 @@ def function3(chanValues, chanTimes, indexr, componentCount):
 	return [allvalues, alltimes]
 
 def processG1A(bs, animCount, animName, endian):
+	bCompatible = True
 	keyFramedBoneList = []
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1337,7 +1342,6 @@ def processG1A(bs, animCount, animName, endian):
 	tempPos1 = bs.tell()
 	boneInfoCount = bs.readUShort()
 	boneMaxID = bs.readUShort()
-
 	tempPos2 = bs.tell()
 	for i in range(boneInfoCount):
 		bs.seek(tempPos2 + i * 8)
@@ -1420,11 +1424,14 @@ def processG1A(bs, animCount, animName, endian):
 				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3)
 			keyFramedBoneList.append(actionBone)
 		else:
-			print("G1A Animation not compatible with the skeleton")
-			return -1
+			bCompatible = False
+			continue
 	anim = NoeKeyFramedAnim(animName, boneList, keyFramedBoneList, 30)
 	animationList.append(anim)
-	print("G1A Animation " + str(animCount + 1) + " loaded")
+	if (bCompatible):
+		print("G1A Animation " + str(animCount + 1) + " loaded")
+	else:
+		print("G1A Animation " + str(animCount + 1) + " loaded but may not be compatible !")
 	return 30
 
 # =================================================================
