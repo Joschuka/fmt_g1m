@@ -1569,6 +1569,8 @@ def LoadModel(data, mdlList):
 			oidPath = noesis.optGetArg("-g1mskeletonoid")
 		else:
 			oidPath = rapi.loadPairedFileGetPath("skeleton name file", "Oid.bin;*.oid")
+			if oidPath is not None:
+				oidPath = oidPath[1]
 
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
