@@ -22,7 +22,6 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 bLoadG1T = True			# Allow to choose a paired .g1t file
 bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
-bG1MPlaintext = False			# When the Oid is completely plaintext
 bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = True	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
@@ -50,7 +49,6 @@ def registerNoesisTypes():
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
-	noesis.addOption(handle, "-g1mskeletonoidtext", "Specified Oid is plaintext")
 	noesis.addOption(handle, "-g1mtexture", "Specify G1T path", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimations", "Load Specified Animations", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimationdir", "Load Specified Animations from directories", noesis.OPTFLAG_WANTARG)
@@ -456,11 +454,11 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 	print("Skeleton parsed")
 	return 1
 
-def parseG1MOid(bs):
+def parseG1MOid(bs, plaintext):
 	if len(boneList) == 0: 
 		return 1
 	stringList = []
-	if bG1MPlaintext or noesis.optWasInvoked("-g1mskeletonoidtext"):
+	if plaintext:
 		stringList = noeStrFromBytes(bs.readBytes(bs.getSize())).split('\n')
 	else:
 		while(1):
@@ -1496,6 +1494,7 @@ def LoadModel(data, mdlList):
 	g1tData = None
 	g1sData = None
 	oidData = None
+	oidPath = None
 	g2aData = None
 	g1hData = None
 	animDir = None
@@ -1567,10 +1566,9 @@ def LoadModel(data, mdlList):
 	
 	if bLoadG1MOid or noesis.optWasInvoked("-g1mskeletonoid"):
 		if (noesis.optWasInvoked("-g1mskeletonoid")):
-			with open(noesis.optGetArg("-g1mskeletonoid"), "rb") as oidStream:
-				oidData = oidStream.read()
+			oidPath = noesis.optGetArg("-g1mskeletonoid")
 		else:
-			oidData = rapi.loadPairedFileOptional("skeleton name file", "Oid.bin;*.oid")
+			oidPath = rapi.loadPairedFileGetPath("skeleton name file", "Oid.bin;*.oid")
 
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
@@ -1612,9 +1610,10 @@ def LoadModel(data, mdlList):
 		# parseG1MM(bs)
 		bs.seek(currentPosition + chunkSize)	
 
-	if oidData is not None:
-		bs3 = NoeBitStream(oidData)
-		parseG1MOid(bs3)
+	if oidPath is not None:
+		with open(oidPath, "rb") as oidStream:
+			oidData = NoeBitStream(oidStream.read())
+			parseG1MOid(oidData, oidPath.lower().endswith("oid"))
 	
 	if bLoadG1AG2AFolder or noesis.optWasInvoked("-g1manimationdir"):
 		if noesis.optWasInvoked("-g1manimationdir"):
