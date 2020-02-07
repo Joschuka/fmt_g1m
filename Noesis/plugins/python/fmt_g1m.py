@@ -22,6 +22,7 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 bLoadG1T = True			# Allow to choose a paired .g1t file
 bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
+bG1MPlaintext = False			# When the Oid is completely plaintext
 bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = True	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
@@ -49,6 +50,7 @@ def registerNoesisTypes():
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
+	noesis.addOption(handle, "-g1mskeletonoidtext", "Specified Oid is plaintext")
 	noesis.addOption(handle, "-g1mtexture", "Specify G1T path", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimations", "Load Specified Animations", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1manimationdir", "Load Specified Animations from directories", noesis.OPTFLAG_WANTARG)
@@ -458,17 +460,22 @@ def parseG1MOid(bs):
 	if len(boneList) == 0: 
 		return 1
 	stringList = []
-	while(1):
-		length = bs.readByte()
-		if (length == 255 or length == -1):
-			break
-		string = noeStrFromBytes(bs.readBytes(length))
-		stringList.append(string)
+	if bG1MPlaintext or noesis.optWasInvoked("-g1mskeletonoidtext"):
+		stringList = noeStrFromBytes(bs.readBytes(bs.getSize())).split('\n')
+	else:
+		while(1):
+			length = bs.readByte()
+			if (length == 255 or length == -1):
+				break
+			string = noeStrFromBytes(bs.readBytes(length))
+			stringList.append(string)
 
 	if len(stringList) < 1:
 		print("Oid is too small!")
 		return 0
 
+	stringList = filter(stringList, lambda x: not x.startswith(';'))
+	
 	if stringList[0] == "HeaderCharaOid":
 		if len(stringList) < 4:
 			print("Oid is too small!")
@@ -1563,7 +1570,7 @@ def LoadModel(data, mdlList):
 			with open(noesis.optGetArg("-g1mskeletonoid"), "rb") as oidStream:
 				oidData = oidStream.read()
 		else:
-			oidData = rapi.loadPairedFileOptional("skeleton name file", "Oid.bin")
+			oidData = rapi.loadPairedFileOptional("skeleton name file", "Oid.bin;*.oid")
 
 	magic = noeStrFromBytes(bs.readBytes(4))
 	version = noeStrFromBytes(bs.readBytes(4))
