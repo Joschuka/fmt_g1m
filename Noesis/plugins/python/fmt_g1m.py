@@ -844,6 +844,9 @@ def processG1T(bs):
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
 			mortonWidth = 8
+		elif (textureFormat == 0x65):
+			format = noesis.FOURCC_BC6H
+			mortonWidth = 8
 		elif (textureFormat == 0x6F):
 			format = 0x22 + 0x1000
 			computedSize = width * height
