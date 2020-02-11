@@ -23,9 +23,9 @@ bLoadG1T = True			# Allow to choose a paired .g1t file
 bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
 bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
-bLoadG1AG2A = True	 		# Allow to choose a paired .g1a/.g2a file
-bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
-bLoadG1H = False				#Allow to choose a paired .g1h file
+bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
+bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
+bLoadG1H = False			#Allow to choose a paired .g1h file
 G1HOffset = 20				#Offset between different morph targets
 # =================================================================
 # Miscenalleous
@@ -155,6 +155,8 @@ class Mesh:
 		self.vertPosBuff = []
 		self.vertPosStride = None
 		self.vertUVBuff = []
+		self.vertUV1Buff = []
+		self.vertUV2Buff = []
 		self.vertUVStride = None
 		self.vertNormBuff = []
 		self.vertNormStride = None
@@ -163,6 +165,9 @@ class Mesh:
 		self.skinWeightList = []
 		self.skinIndiceList = []
 		self.oldSkinIndiceList = []
+		self.skinWeightList2 = []
+		self.skinIndiceList2 = []
+		self.oldSkinIndiceList2 = []
 		self.clothStuff1Buffer = []
 		self.clothStuff2Buffer = []
 		self.clothStuff3Buffer = []
@@ -180,6 +185,7 @@ class Mesh:
 		self.matList = []
 		self.textureList = []
 		self.vertCount = None
+		self.Has8Weights = False
 
 
 class Material:
@@ -218,8 +224,6 @@ class LODList:
 		self.list = []
 
 # =================================================================
-
-
 # G1M Class, with all the containers for the model
 # =================================================================
 
@@ -1753,6 +1757,7 @@ def LoadModel(data, mdlList):
 		spec = g1m.specList[info[1]]
 		mesh = meshList[info[1]]
 		mat = Material()
+		layer1Offset = 0
 		diffID = -1
 		normID = -1
 		if info[6] < len(g1m.textureList):
@@ -1839,14 +1844,21 @@ def LoadModel(data, mdlList):
 					currentPos = bs.tell()
 					bs.seek(currentPos + element.offset)
 					if element.typeHandler in [0x0001,0x0100]:
+						uv = [bs.readFloat() for i in range(2)]
 						if element.layer == 0:
-							uv = [bs.readFloat() for i in range(2)]
-							# uv=[bs.readHalfFloat() for i in range(2)]
 							mesh.vertUVBuff.append(uv)
+						elif element.layer == 1:
+							mesh.vertUV1Buff.append(uv)
+						elif element.layer == 2:
+							mesh.vertUV2Buff.append(uv)
 					elif element.typeHandler in [0x000A,0x0A00]:
+						uv = [bs.readHalfFloat() for i in range(2)]
 						if element.layer == 0:
-							uv = [bs.readHalfFloat() for i in range(2)]
 							mesh.vertUVBuff.append(uv)
+						elif element.layer == 1:
+							mesh.vertUV1Buff.append(uv)
+						elif element.layer == 2:
+							mesh.vertUV2Buff.append(uv)
 					elif element.typeHandler in [0x0003,0x0300]:
 						clothStuff2 = NoeVec4([bs.readFloat() for i in range(4)])
 						mesh.clothStuff2Buffer.append(clothStuff2)
@@ -2001,55 +2013,106 @@ def LoadModel(data, mdlList):
 						bs.seek(currentPos + buffer.strideSize)
 			# Weights
 			if element.attribute in [0x0001,0x0100]:
-				# if element.layer==0:#layer 0
-				if (True):
+				if element.layer==0:#layer 0
+					layer1Offset = len(mesh.skinWeightList)
 					buffer = g1m.vertBufferList[element.bufferID]
 					bs.seek(buffer.offset + info[10] * buffer.strideSize)
 					for n in range(info[11]):
 						currentPos = bs.tell()
 						bs.seek(currentPos + element.offset)
 						if element.typeHandler == 0x0000:
-							weight = NoeVec4([bs.readFloat(), 0, 0, 0])
+							weight = [bs.readFloat(), 0, 0, 0]
 							weight[1] = 1 - weight[0]
+							if (weight[1]<0.00001):
+								weight[1]=0
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x0001,0x0100]:
-							weight = NoeVec4([bs.readFloat(), bs.readFloat(), 0, 0])
+							weight = [bs.readFloat(), bs.readFloat(), 0, 0]
 							weight[2] = 1 - weight[0] - weight[1]
+							if (weight[2]<0.00001):
+								weight[2]=0
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x0002,0x0200]:
-							weight = NoeVec4([bs.readFloat(), bs.readFloat(), bs.readFloat(), 0])
+							weight = [bs.readFloat(), bs.readFloat(), bs.readFloat(), 0]
 							weight[3] = 1 - weight[0] - weight[1] - weight[2]
+							if (weight[3]<0.00001):
+								weight[3]=0
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x0003,0x0300]:
-							weight = NoeVec4([bs.readFloat() for i in range(4)])
+							weight = [bs.readFloat() for i in range(4)]
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x000A,0x0A00]:
-							weight = NoeVec4([bs.readHalfFloat(), bs.readHalfFloat(), 0, 0])
+							weight = [bs.readHalfFloat(), bs.readHalfFloat(), 0, 0]
 							weight[2] = 1 - weight[0] - weight[1]
+							if (weight[2]<0.00001):
+								weight[2]=0
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x000B,0x0B00]:
-							weight = NoeVec4([bs.readHalfFloat() for i in range(4)])
+							weight = [bs.readHalfFloat() for i in range(4)]
 							mesh.skinWeightList.append(weight)
 						elif element.typeHandler in [0x000D,0x0D00]:
-							weight = NoeVec4([bs.readUByte() / 255 for i in range(4)])
+							weight = [bs.readUByte() / 255 for i in range(4)]
 							mesh.skinWeightList.append(weight)
 						else:
 							print("unknown weight type handler... " + str(element.typeHandler))
 						if (n != info[11] - 1):
 							bs.seek(currentPos + buffer.strideSize)
-
+				elif element.layer==1:
+					buffer = g1m.vertBufferList[element.bufferID]
+					bs.seek(buffer.offset + info[10] * buffer.strideSize)
+					u = layer1Offset
+					for n in range(info[11]):
+						currentPos = bs.tell()
+						bs.seek(currentPos + element.offset)
+						if element.typeHandler == 0x0000:
+							weight = [bs.readFloat(), 0, 0, 0]
+							weight[1] = 1 - weight[0] - mesh.skinWeightList[u][0] - mesh.skinWeightList[u][1] - mesh.skinWeightList[u][2] - mesh.skinWeightList[u][3]
+							if (weight[1]<0.00001):
+								weight[1]=0
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x0001,0x0100]:
+							weight = [bs.readFloat(), bs.readFloat(), 0, 0]
+							weight[2] = 1 - weight[0] - weight[1] - mesh.skinWeightList[u][0] - mesh.skinWeightList[u][1] - mesh.skinWeightList[u][2] - mesh.skinWeightList[u][3]
+							if (weight[2]<0.00001):
+								weight[2]=0
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x0002,0x0200]:
+							weight = [bs.readFloat(), bs.readFloat(), bs.readFloat(), 0]
+							weight[3] = 1 - weight[0] - weight[1] - weight[2] - mesh.skinWeightList[u][0] - mesh.skinWeightList[u][1] - mesh.skinWeightList[u][2] - mesh.skinWeightList[u][3]
+							if (weight[3]<0.00001):
+								weight[3]=0
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x0003,0x0300]:
+							weight = [bs.readFloat() for i in range(4)]
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x000A,0x0A00]:
+							weight = [bs.readHalfFloat(), bs.readHalfFloat(), 0, 0]
+							weight[2] = 1 - weight[0] - weight[1] - mesh.skinWeightList[u][0] - mesh.skinWeightList[u][1] - mesh.skinWeightList[u][2] - mesh.skinWeightList[u][3]
+							if (weight[2]<0.00001):
+								weight[2]=0
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x000B,0x0B00]:
+							weight = [bs.readHalfFloat() for i in range(4)]
+							mesh.skinWeightList2.append(weight)
+						elif element.typeHandler in [0x000D,0x0D00]:
+							weight = [bs.readUByte() / 255 for i in range(4)]
+							mesh.skinWeightList2.append(weight)
+						else:
+							print("unknown weight type handler... " + str(element.typeHandler))
+						if (n != info[11] - 1):
+							bs.seek(currentPos + buffer.strideSize)
+						u+=1
 			# Bone Indices
 			if element.attribute in [0x0002,0x0200]:
-				# if element.layer == 0:
-				if(True):
+				if element.layer == 0:
 					buffer = g1m.vertBufferList[element.bufferID]
 					bs.seek(buffer.offset + info[10] * buffer.strideSize)
 					for n in range(info[11]):
 						currentPos = bs.tell()
 						bs.seek(currentPos + element.offset)
 						if element.typeHandler in [0x0005,0x0500]:
-							index = NoeVec4()
-							index2 = NoeVec4()
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
 							for a in range(4):
 								ID = bs.readUByte()
 								index2[a] = ID
@@ -2060,8 +2123,8 @@ def LoadModel(data, mdlList):
 							mesh.skinIndiceList.append(index)
 							mesh.oldSkinIndiceList.append(index2)
 						elif element.typeHandler in [0x0007,0x0700]:
-							index = NoeVec4()
-							index2 = NoeVec4()
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
 							for a in range(4):
 								ID = bs.readUShort()
 								index2[a] = ID
@@ -2072,8 +2135,8 @@ def LoadModel(data, mdlList):
 							mesh.skinIndiceList.append(index)
 							mesh.oldSkinIndiceList.append(index2)
 						elif element.typeHandler in [0x000D,0x0D00]:
-							index = NoeVec4()
-							index2 = NoeVec4()
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
 							for a in range(4):
 								ID = bs.readUByte()
 								index2[a] = ID
@@ -2087,15 +2150,67 @@ def LoadModel(data, mdlList):
 							print("unknown indices type handler... " + str(element.typeHandler))
 						if (n != info[11] - 1):
 							bs.seek(currentPos + buffer.strideSize)
-		if len(boneList) > 0 and (len(mesh.oldSkinIndiceList) == 0 or len(mesh.skinWeightList) == 0):
-			if len(mesh.oldSkinIndiceList) == 0:
-				mesh.oldSkinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
-				mesh.skinIndiceList = [NoeVec4([0, 0, 0, 0]) for n in range(info[11])]
-				mesh.hasNoBoneIndice = True
-			if len(mesh.skinWeightList) == 0:
-				mesh.skinWeightList = [NoeVec4([1, 0, 0, 0]) for n in range(info[11])]
-				mesh.hasNoBoneWeight = True
-			
+				elif element.layer == 1:
+					mesh.Has8Weights = True
+					buffer = g1m.vertBufferList[element.bufferID]
+					bs.seek(buffer.offset + info[10] * buffer.strideSize)
+					for n in range(info[11]):
+						currentPos = bs.tell()
+						bs.seek(currentPos + element.offset)
+						if element.typeHandler in [0x0005,0x0500]:
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
+							for a in range(4):
+								ID = bs.readUByte()
+								index2[a] = ID
+								ID = ID // 3
+								if len(g1m.boneMapList[info[2]]) > ID:
+									ID = g1m.boneMapList[info[2]][ID]
+								index[a] = ID
+							mesh.skinIndiceList2.append(index)
+							mesh.oldSkinIndiceList2.append(index2)
+						elif element.typeHandler in [0x0007,0x0700]:
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
+							for a in range(4):
+								ID = bs.readUShort()
+								index2[a] = ID
+								ID = ID // 3
+								if len(g1m.boneMapList[info[2]]) > ID:
+									ID = g1m.boneMapList[info[2]][ID]
+								index[a] = ID
+							mesh.skinIndiceList2.append(index)
+							mesh.oldSkinIndiceList2.append(index2)
+						elif element.typeHandler in [0x000D,0x0D00]:
+							index = [0 for j in range(4)]
+							index2 = [0 for j in range(4)]
+							for a in range(4):
+								ID = bs.readUByte()
+								index2[a] = ID
+								ID = ID // 3
+								if len(g1m.boneMapList[info[2]]) > ID:
+									ID = g1m.boneMapList[info[2]][ID]
+								index[a] = ID
+							mesh.skinIndiceList2.append(index)
+							mesh.oldSkinIndiceList2.append(index2)
+						else:
+							print("unknown indices type handler... " + str(element.typeHandler))
+						if (n != info[11] - 1):
+							bs.seek(currentPos + buffer.strideSize)			
+		if len(boneList) > 0 and len(mesh.skinWeightList) == 0:
+			if len(mesh.oldSkinIndiceList) > 0:
+				mesh.skinWeightList = [[1, 0, 0, 0] for n in range(mesh.vertCount)]
+				if(mesh.Has8Weights):
+					mesh.skinWeightList2 = [[1, 0, 0, 0] for n in range(mesh.vertCount)]
+			else:
+				mesh.oldSkinIndiceList = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+				mesh.skinIndiceList = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+				mesh.skinWeightList = [[1, 0, 0, 0] for n in range(mesh.vertCount)]
+				if(mesh.Has8Weights):
+					mesh.oldSkinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+					mesh.skinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+					mesh.skinWeightList2 = [[1, 0, 0, 0] for n in range(mesh.vertCount)]		
+				
 		indiceBuffer = g1m.indiceBufferList[info[7]]
 		bs.seek(indiceBuffer.offset + info[12] * indiceBuffer.strideSize)
 		mat.IDStart = info[12]
@@ -2205,9 +2320,10 @@ def LoadModel(data, mdlList):
 					mesh.vertPosBuff[v] = d5.cross(d6) * mesh.clothStuff4Buffer[v] + d4
 					mesh.skinWeightList[v] = NoeVec4()
 					mesh.skinIndiceList[v] = NoeVec4()
-
 		finalVertexPosBuffer = bytes()
 		finalVertexUVBuffer = bytes()
+		finalVertexUV1Buffer = bytes()
+		finalVertexUV2Buffer = bytes()
 		finalVertexNormBuffer = bytes()
 		finalIndiceList = bytes()
 		finalWeightList = bytes()
@@ -2242,6 +2358,19 @@ def LoadModel(data, mdlList):
 			vertex = mesh.vertUVBuff[v]
 			for k in range(2):
 				finalVertexUVBuffer += noePack(endianC + 'f', vertex[k])
+				
+		if len(mesh.vertUV1Buff) > 0:
+			for v in range(mesh.vertCount):
+				vertex = mesh.vertUV1Buff[v]
+				for k in range(2):
+					finalVertexUV1Buffer += noePack(endianC + 'f', vertex[k])
+				
+		if len(mesh.vertUV2Buff) > 0:
+			for v in range(mesh.vertCount):
+				vertex = mesh.vertUV2Buff[v]
+				for k in range(2):
+					finalVertexUV2Buffer += noePack(endianC + 'f', vertex[k])
+				
 		# tangents
 		if (len(mesh.tangentBuffer) != 0):
 			for v in range(mesh.vertCount):
@@ -2255,17 +2384,25 @@ def LoadModel(data, mdlList):
 		# finalColorBuffer+=noePack(endianC + 'f',vertex[k])
 		
 		# Weights
-		if not mesh.hasNoBoneWeight:
+		if (len(boneList) > 0):
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinWeightList[v]
 				for k in range(4):
 					finalWeightList += noePack(endianC + 'f', vertex[k])
+				if(mesh.Has8Weights):
+					vertex = mesh.skinWeightList2[v]
+					for k in range(4):
+						finalWeightList += noePack(endianC + 'f', vertex[k])
 		# Bone indices
-		if not mesh.hasNoBoneIndice:
+		if (len(boneList) > 0):
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinIndiceList[v]
 				for k in range(4):
 					finalIndiceList += noePack(endianC + 'H', int(vertex[k]) & 0xFFFF)
+				if(mesh.Has8Weights):
+					vertex = mesh.skinIndiceList2[v]
+					for k in range(4):
+						finalIndiceList += noePack(endianC + 'H', int(vertex[k]) & 0xFFFF)
 		rapi.rpgClearBufferBinds()
 		rapi.rpgBindPositionBuffer(finalVertexPosBuffer, noesis.RPGEODATA_FLOAT, 12)
 		rapi.rpgBindUV1Buffer(finalVertexUVBuffer, noesis.RPGEODATA_FLOAT, 8)
@@ -2273,10 +2410,15 @@ def LoadModel(data, mdlList):
 		# rapi.rpgBindColorBuffer(finalColorBuffer, noesis.RPGEODATA_FLOAT,16,4)
 		# if(len(mesh.tangentBuffer)>0):
 		# rapi.rpgBindTangentBuffer(finalTangentBuffer,noesis.RPGEODATA_FLOAT,16)
-
-		if not (mesh.hasNoBoneIndice or mesh.hasNoBoneWeight):
-			rapi.rpgBindBoneIndexBuffer(finalIndiceList, noesis.RPGEODATA_USHORT, 8, 4)
-			rapi.rpgBindBoneWeightBuffer(finalWeightList, noesis.RPGEODATA_FLOAT, 16, 4)
+		
+		if len(mesh.vertUV1Buff) > 0:
+			rapi.rpgBindUV2Buffer(finalVertexUV1Buffer, noesis.RPGEODATA_FLOAT, 8)
+		if len(mesh.vertUV2Buff) > 0:
+			rapi.rpgBindUVXBuffer(finalVertexUV2Buffer, noesis.RPGEODATA_FLOAT, 8, 2, mesh.vertCount)
+			
+		if (len(boneList) > 0):
+			rapi.rpgBindBoneIndexBuffer(finalIndiceList, noesis.RPGEODATA_USHORT,16 if mesh.Has8Weights else 8, 8 if mesh.Has8Weights else 4)
+			rapi.rpgBindBoneWeightBuffer(finalWeightList, noesis.RPGEODATA_FLOAT, 32 if mesh.Has8Weights else 16, 8 if mesh.Has8Weights else 4)
 
 		for j, mat in enumerate(mesh.matList):
 			meshName = 'submesh_' + str(currentMesh)
@@ -2316,6 +2458,10 @@ def LoadModel(data, mdlList):
 					rapi.rpgSetName(meshName+'_morph_' + str(index))
 					rapi.rpgBindPositionBuffer(morph, noesis.RPGEODATA_FLOAT, 12)
 					rapi.rpgBindUV1Buffer(finalVertexUVBuffer, noesis.RPGEODATA_FLOAT, 8)
+					if len(mesh.vertUV1Buff) > 0:
+						rapi.rpgBindUV2Buffer(finalVertexUV1Buffer, noesis.RPGEODATA_FLOAT, 8)
+					if len(mesh.vertUV2Buff) > 0:
+						rapi.rpgBindUVXBuffer(finalVertexUV2Buffer, noesis.RPGEODATA_FLOAT, 8, 2, mesh.vertCount)
 					rapi.rpgBindNormalBuffer(finalVertexNormBuffer, noesis.RPGEODATA_FLOAT, 12)
 					
 					if mat.idxType == 1: rapi.rpgCommitTriangles(mesh.idxBuff[mat.IDStart:mat.IDStart + mat.IDCount],
