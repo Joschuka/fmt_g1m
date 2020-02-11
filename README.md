@@ -5,8 +5,7 @@ A Noesis plugin to import G1M model files, G1T texture file, G1A and G2A skeleta
 
 ## Setup
 
-Simply put the 2 python files in the plugins/python/ folder, next to the others and the files in the scenes folder in your Noesis scenes folder. 
-The latter are only needed if you want to you extract g1t files coming from mobile games (Opera Omnia for example), you'll see a command prompt opening and closing instantly for each texture contained in the g1t, that's perfectly normal as Noesis uses the .exe as a subprocess.
+Simply put the python files in the plugins/python/ folder, next to the others.
 
 ## This plugin is still experimental, some models and animations may not work. For some particular models, it may take some time to load and it may seem that Noesis crashed but it will work eventually. If there isn't any error, just wait.
 
