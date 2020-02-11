@@ -1,4 +1,5 @@
 from inc_noesis import *
+from inc_etc import ETC2Decoder
 import os
 import subprocess
 from math import sqrt, sin, cos
@@ -823,7 +824,7 @@ def processG1T(bs):
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x56):
-			format = "ETC1"
+			format = 0x22 + 0x1000
 			computedSize = width * height // 2
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
@@ -843,11 +844,8 @@ def processG1T(bs):
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
 			mortonWidth = 8
-		elif (textureFormat == 0x65):
-			format = noesis.FOURCC_BC6H
-			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format = "ETC1"
+			format = 0x22 + 0x1000
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
@@ -867,27 +865,11 @@ def processG1T(bs):
 		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform))
 		if platform == 2:
 			textureData = rapi.swapEndianArray(textureData, 2)
-		if format == "ETC1":
-			pvrTex = (b'\x50\x56\x52\x03\x02\x00\x00\x00')
-			pvrTex += struct.pack("I", 0x6)            
-			pvrTex += (b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')            
-			pvrTex += struct.pack("I", width)
-			pvrTex += struct.pack("I", height)
-			pvrTex += (b'\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00')
-			pvrTex += textureData	
-			dstFilePath = noesis.getScenesPath() + "ktgl_etctex.pvr"
-			workingdir = noesis.getScenesPath()
-			newfile = open(dstFilePath, 'wb')
-			newfile.write(pvrTex)
-			newfile.close()
-			subprocess.Popen([noesis.getScenesPath() + 'PVR2PNG.bat', dstFilePath]).wait()
-			textureData = rapi.loadIntoByteArray(dstFilePath + ".png")
-			texture = rapi.loadTexByHandler(textureData, ".png")
-			texture.name = textureName
-			textureList.append(texture)
-			continue
-		
 		bRaw = type(format) == str
+		if not bRaw and format >= 0x1000:
+			textureData = ETC2Decoder().decode(textureData, format - 0x1000, width, height)
+			format = "r8 g8 b8 a8" if format >= 0x1046 else "r8 g8 b8"
+			bRaw = True
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
