@@ -839,8 +839,10 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC7
 		elif (textureFormat == 0x60):
 			format = noesis.NOESISTEX_DXT1
+			mortonWidth = 4
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
+			mortonWidth = 8
 		elif (textureFormat == 0x6F):
 			format = "ETC1"
 			computedSize = width * height
@@ -880,36 +882,21 @@ def processG1T(bs):
 			texture = rapi.loadTexByHandler(textureData, ".png")
 			texture.name = textureName
 			textureList.append(texture)
-			continue			
-		if platform == 0x0B: #PS4
-			if format == noesis.NOESISTEX_DXT1:
-				imgFmt = b'\x30\x92'
-			elif format == noesis.NOESISTEX_DXT5:
-				imgFmt = b'\x50\x92'
-			gnfSize = datasize + 0x30
-			width = width-1 + 0xC000
-			height = ((height - 1) >> 2) + 0x7000
-			gnfHeader = b'\x47\x4E\x46\x20\x28\x00\x00\x00\x02\x01\x00\x00'
-			gnfHeader += bytearray(noePack("I", gnfSize))      
-			gnfHeader += b'\x00\x00\x00\x00\x01\x00'
-			gnfHeader += imgFmt                                
-			gnfHeader += bytearray(noePack("H", width))    
-			gnfHeader += bytearray(noePack("H", height))    
-			gnfHeader += b'\xAC\x0F\xD0\xA4\x01\xE0\x7F\x00\x00\x00\x00\x00\x00\00\x00\x00'
-			gnfHeader += bytearray(noePack("I", datasize))     
-			gnfHeader += textureData     
-			tex = rapi.loadTexByHandler(gnfHeader, ".gnf")
-			textureList.append(tex)
 			continue
 		
 		bRaw = type(format) == str
-		if texSys == 0 and mortonWidth > 0: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
+		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
 				if bRaw:
 					textureData = rapi.imageUntile360Raw(textureData, width, height, mortonWidth)
 				else:
 					textureData = rapi.imageUntile360DXT(textureData, width, height, mortonWidth * 2)
+			if platform == 0x0B:
+				if bRaw:
+					textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 0)
+				else:
+					textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
 			else:
 				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
 		if bRaw:
