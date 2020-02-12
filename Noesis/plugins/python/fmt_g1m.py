@@ -824,8 +824,10 @@ def processG1T(bs):
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x56):
-			format = 0x22 + 0x1000
+			format = "ETC1"
 			computedSize = width * height // 2
+		elif (textureFormat == 0x57):
+			format = "ASTC_8_8"
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x5B):
@@ -848,7 +850,7 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format = 0x22 + 0x1000
+			format = "ETC1"
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
@@ -865,14 +867,28 @@ def processG1T(bs):
 			else:
 				textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)	
 				datasize = bs.dataSize - offsetList[i] - headerSize - tableoffset
-		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform))
+		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X; Mips %d" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform, mipMapNumber))
 		if platform == 2:
 			textureData = rapi.swapEndianArray(textureData, 2)
 		bRaw = type(format) == str
-		if not bRaw and format >= 0x1000:
-			textureData = ETC2Decoder().decode(textureData, format - 0x1000, width, height)
-			format = "r8 g8 b8 a8" if format >= 0x1046 else "r8 g8 b8"
-			bRaw = True
+		if bRaw and format.startswith("ETC"):
+			if format == "ETC1":
+				etcFormat = ETC2Decoder.ETC_RGB4
+				format = "r8 g8 b8"
+			elif format == "ETC2_A1":
+				etcFormat = ETC2Decoder.ETC2_RGBA1
+				format = "r8 g8 b8 a8"
+			elif format == "ETC2_A8":
+				etcFormat = ETC2Decoder.ETC2_RGBA8
+				format = "r8 g8 b8 a8"
+			else:
+				etcFormat = ETC2Decoder.ETC2_RGB
+				format = "r8 g8 b8"
+			textureData = ETC2Decoder().decode(textureData, etcFormat, width, height)
+		elif format.startswith("ASTC"):
+			dims = list(map(lambda x: int(x), format.split('_')[1:]))
+			textureData = rapi.callExtensionMethod("astc_decoderaw32", textureData, dims[0], dims[1], 1, width, height, 1)
+			format = "r8 g8 b8 a8"
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
