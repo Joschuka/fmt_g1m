@@ -1,7 +1,5 @@
 from inc_noesis import *
-from inc_etc import ETC2Decoder
 import os
-import subprocess
 from math import sqrt, sin, cos
 # import rpdb
 # debugger = rpdb.Rpdb()
@@ -824,7 +822,7 @@ def processG1T(bs):
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x56):
-			format = "ETC1"
+			format = "ETC1_rgb"
 			computedSize = width * height // 2
 		# elif (textureFormat == 0x57):
 		#	format = "ASTC_8_8"
@@ -851,7 +849,7 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format = "ETC1"
+			format = "ETC1_rgb"
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
@@ -873,19 +871,9 @@ def processG1T(bs):
 			textureData = rapi.swapEndianArray(textureData, 2)
 		bRaw = type(format) == str
 		if bRaw and format.startswith("ETC"):
-			if format == "ETC1":
-				etcFormat = ETC2Decoder.ETC_RGB4
-				format = "r8 g8 b8"
-			elif format == "ETC2_A1":
-				etcFormat = ETC2Decoder.ETC2_RGBA1
-				format = "r8 g8 b8 a8"
-			elif format == "ETC2_A8":
-				etcFormat = ETC2Decoder.ETC2_RGBA8
-				format = "r8 g8 b8 a8"
-			else:
-				etcFormat = ETC2Decoder.ETC2_RGB
-				format = "r8 g8 b8"
-			textureData = ETC2Decoder().decode(textureData, etcFormat, width, height)
+			etcType = format.split('_')[1]
+			textureData = rapi.callExtensionMethod("etc_decoderaw32", textureData, width, height, etcType)
+			format = "r8 g8 b8 a8"
 		elif bRaw and format.startswith("ASTC"):
 			dims = list(map(lambda x: int(x), format.split('_')[1:]))
 			if mortonWidth > 0:
