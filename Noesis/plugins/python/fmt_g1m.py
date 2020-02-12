@@ -826,8 +826,9 @@ def processG1T(bs):
 		elif (textureFormat == 0x56):
 			format = "ETC1"
 			computedSize = width * height // 2
-		elif (textureFormat == 0x57):
-			format = "ASTC_8_8"
+		# elif (textureFormat == 0x57):
+		#	format = "ASTC_8_8"
+		# not ASTC, Probably PVR? Only seen in iOS Ratio 0x1:0x10
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x5B):
@@ -885,8 +886,11 @@ def processG1T(bs):
 				etcFormat = ETC2Decoder.ETC2_RGB
 				format = "r8 g8 b8"
 			textureData = ETC2Decoder().decode(textureData, etcFormat, width, height)
-		elif format.startswith("ASTC"):
+		elif bRaw and format.startswith("ASTC"):
 			dims = list(map(lambda x: int(x), format.split('_')[1:]))
+			if mortonWidth > 0:
+				textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
+				mortonWidth = 0
 			textureData = rapi.callExtensionMethod("astc_decoderaw32", textureData, dims[0], dims[1], 1, width, height, 1)
 			format = "r8 g8 b8 a8"
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
