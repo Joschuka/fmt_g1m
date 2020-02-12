@@ -894,7 +894,10 @@ def processG1T(bs):
 				else:
 					textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
 			else:
-				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
+				if bRaw:
+					textureData = rapi.imageFromMortonOrder(textureData, width, height, mortonWidth)
+				else:
+					textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
 		if bRaw:
 			if format != noesis.NOESISTEX_RGBA32 and format != "r8 g8 b8 a8":
 				textureData = rapi.imageDecodeRaw(textureData, width, height, format)
