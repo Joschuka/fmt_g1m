@@ -855,7 +855,7 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format =  "ETC1_rgb"
+			format = "ETC1_rgb"
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
