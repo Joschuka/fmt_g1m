@@ -1,6 +1,5 @@
 from inc_noesis import *
 import os
-import subprocess
 from math import sqrt, sin, cos
 # import rpdb
 # debugger = rpdb.Rpdb()
@@ -592,9 +591,9 @@ def parseNUNOSection0301(chunkVersion, bs):
 	nunotype0301.parentBoneID = a if endian == NOE_LITTLEENDIAN else b
 	controlPointCount = bs.readUInt()
 	unknownSectionCount = bs.readUInt()
-	unknown1 = bs.readInt()
-	unknown2 = bs.readInt()
-	unknown3 = bs.readInt()
+	skip1 = bs.readInt()
+	skip2 = bs.readInt()
+	skip3 = bs.readInt()
 
 	bs.readBytes(0x4C)
 	if (chunkVersion >= 0x30303235):
@@ -614,9 +613,9 @@ def parseNUNOSection0301(chunkVersion, bs):
 		nunotype0301.influences.append(influence)
 
 	bs.readBytes(48 * unknownSectionCount)
-	bs.readBytes(4 * unknown1)
-	bs.readBytes(4 * unknown2)
-	bs.readBytes(4 * unknown3)
+	bs.readBytes(4 * skip1)
+	bs.readBytes(4 * skip2)
+	bs.readBytes(4 * skip3)
 
 	NUNO0303StructList.append(nunotype0301)
 
@@ -705,7 +704,7 @@ def parseNUNVSection0501(chunkVersion, bs):
 	nunvtype0501.parentBoneID = a if endian == NOE_LITTLEENDIAN else b		
 	controlPointCount = bs.readUInt()
 	unknownSectionCount = bs.readUInt()
-	unknown1 = bs.readInt()
+	skip1 = bs.readInt()
 	bs.readBytes(0x54)
 	if (chunkVersion >= 0x30303131):
 		bs.readBytes(0x10)
@@ -725,7 +724,7 @@ def parseNUNVSection0501(chunkVersion, bs):
 
 	# reading the unknown sections data
 	bs.readBytes(48 * unknownSectionCount)
-	bs.readBytes(4 * unknown1)
+	bs.readBytes(4 * skip1)
 
 	NUNV0303StructList.append(nunvtype0501)
 
@@ -829,8 +828,11 @@ def processG1T(bs):
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x56):
-			format = 0x22 + 0x1000
+			format = "ETC1_rgb"
 			computedSize = width * height // 2
+		# elif (textureFormat == 0x57):
+		#	format = "ASTC_8_8"
+		# not ASTC, Probably PVR? Only seen in iOS Ratio 0x1:0x10
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x5B):
@@ -853,7 +855,7 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format = 0x22 + 0x1000
+			format =  "ETC1_rgb"
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
@@ -870,14 +872,21 @@ def processG1T(bs):
 			else:
 				textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)	
 				datasize = bs.dataSize - offsetList[i] - headerSize - tableoffset
-		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform))
+		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X; Mips %d" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform, mipMapNumber))
 		if platform == 2:
 			textureData = rapi.swapEndianArray(textureData, 2)
 		bRaw = type(format) == str
-		if not bRaw and format >= 0x1000:
-			textureData = ETC2Decoder().decode(textureData, format - 0x1000, width, height)
-			format = "r8 g8 b8 a8" if format >= 0x1046 else "r8 g8 b8"
-			bRaw = True
+		if bRaw and format.startswith("ETC"):
+			etcType = format.split('_')[1]
+			textureData = rapi.callExtensionMethod("etc_decoderaw32", textureData, width, height, etcType)
+			format = "r8 g8 b8 a8"
+		elif bRaw and format.startswith("ASTC"):
+			dims = list(map(lambda x: int(x), format.split('_')[1:]))
+			if mortonWidth > 0:
+				textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
+				mortonWidth = 0
+			textureData = rapi.callExtensionMethod("astc_decoderaw32", textureData, dims[0], dims[1], 1, width, height, 1)
+			format = "r8 g8 b8 a8"
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
@@ -891,9 +900,13 @@ def processG1T(bs):
 				else:
 					textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
 			else:
-				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
+				if bRaw:
+					textureData = rapi.imageFromMortonOrder(textureData, width, height, mortonWidth)
+				else:
+					textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
 		if bRaw:
-			textureData = rapi.imageDecodeRaw(textureData, width, height, format)
+			if format != noesis.NOESISTEX_RGBA32 and format != "r8 g8 b8 a8":
+				textureData = rapi.imageDecodeRaw(textureData, width, height, format)
 			format = noesis.NOESISTEX_RGBA32
 		else:
 			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
