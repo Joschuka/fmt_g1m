@@ -1,5 +1,6 @@
 from inc_noesis import *
 import os
+import subprocess
 from math import sqrt, sin, cos
 # import rpdb
 # debugger = rpdb.Rpdb()
@@ -19,9 +20,9 @@ bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
 
 #paired files options
 bLoadG1T = True			# Allow to choose a paired .g1t file
-bLoadG1MS = False			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MS = True			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
-bAutoLoadG1MS = True		# Load the first g1m in the same folder as skeleton
+bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 bLoadG1H = False			#Allow to choose a paired .g1h file
@@ -586,16 +587,16 @@ class NUNOType0303Struct:
 def parseNUNOSection0301(chunkVersion, bs):
 	nunotype0301 = NUNOType0303Struct()
 	nunotype0301.name = "nuno"
-	bs.read('i')
+	a = bs.readUShort()
+	b = bs.readUShort()
+	nunotype0301.parentBoneID = a if endian == NOE_LITTLEENDIAN else b
 	controlPointCount = bs.readUInt()
 	unknownSectionCount = bs.readUInt()
 	unknown1 = bs.readInt()
 	unknown2 = bs.readInt()
 	unknown3 = bs.readInt()
-	bs.read('2i')
-	nunotype0301.parentBoneID = bs.readInt()
 
-	bs.readBytes(0x40)
+	bs.readBytes(0x4C)
 	if (chunkVersion >= 0x30303235):
 		bs.readBytes(0x10)
 
@@ -635,13 +636,16 @@ def parseNUNOSection0302(chunkVersion, bs):
 def parseNUNOSection0303(chunkVersion, bs):
 	nunotype0303 = NUNOType0303Struct()
 	nunotype0303.name = "nuno"
-	bs.read('i')
+	a = bs.readUShort()
+	b = bs.readUShort()
+	nunotype0303.parentBoneID = a if endian == NOE_LITTLEENDIAN else b
 	controlPointCount = bs.readUInt()
 	unknownSectionCount = bs.readUInt()
-	unknown1 = bs.readInt()
-	nunotype0303.parentBoneID = bs.readInt()
-	unknown2 = bs.readInt()
-	bs.readBytes(0xB0)
+	skip1 = bs.readInt()
+	bs.read('i')
+	skip2 = bs.readInt()
+	skip3 = bs.readInt()
+	bs.readBytes(0xAC)
 	if (chunkVersion >= 0x30303235):
 		bs.readBytes(0x10)
 
@@ -660,8 +664,10 @@ def parseNUNOSection0303(chunkVersion, bs):
 
 	# reading the unknown sections data
 	bs.readBytes(48 * unknownSectionCount)
-	bs.readBytes(4 * unknown1)
-	bs.readBytes(8 * unknown2)
+	bs.readBytes(4 * skip1)
+	bs.readBytes(8 * skip2)
+	bs.readBytes(12 * skip3)
+	
 
 	NUNO0303StructList.append(nunotype0303)
 
@@ -694,12 +700,13 @@ def parseNUNO(chunkVersion, bs):
 def parseNUNVSection0501(chunkVersion, bs):
 	nunvtype0501 = NUNOType0303Struct()  # same struct
 	nunvtype0501.name = "nunv"
-	bs.read('i')
+	a = bs.readUShort()
+	b = bs.readUShort()
+	nunvtype0501.parentBoneID = a if endian == NOE_LITTLEENDIAN else b		
 	controlPointCount = bs.readUInt()
 	unknownSectionCount = bs.readUInt()
 	unknown1 = bs.readInt()
-	nunvtype0501.parentBoneID = bs.readInt()
-	bs.readBytes(0x50)
+	bs.readBytes(0x54)
 	if (chunkVersion >= 0x30303131):
 		bs.readBytes(0x10)
 
@@ -822,11 +829,8 @@ def processG1T(bs):
 		elif (textureFormat == 0x3D):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x56):
-			format = "ETC1_rgb"
+			format = 0x22 + 0x1000
 			computedSize = width * height // 2
-		# elif (textureFormat == 0x57):
-		#	format = "ASTC_8_8"
-		# not ASTC, Probably PVR? Only seen in iOS Ratio 0x1:0x10
 		elif (textureFormat == 0x59):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x5B):
@@ -849,7 +853,7 @@ def processG1T(bs):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
 		elif (textureFormat == 0x6F):
-			format = "ETC1_rgb"
+			format = 0x22 + 0x1000
 			computedSize = width * height
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
@@ -866,21 +870,14 @@ def processG1T(bs):
 			else:
 				textureData = bs.readBytes(bs.dataSize - offsetList[i] - headerSize - tableoffset)	
 				datasize = bs.dataSize - offsetList[i] - headerSize - tableoffset
-		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X; Mips %d" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform, mipMapNumber))
+		print("Loaded Texture %d of %d; %dx%d; Format %X; Size %X; System %X" % (i + 1, textureCount, width, height, textureFormat, len(textureData), platform))
 		if platform == 2:
 			textureData = rapi.swapEndianArray(textureData, 2)
 		bRaw = type(format) == str
-		if bRaw and format.startswith("ETC"):
-			etcType = format.split('_')[1]
-			textureData = rapi.callExtensionMethod("etc_decoderaw32", textureData, width, height, etcType)
-			format = "r8 g8 b8 a8"
-		elif bRaw and format.startswith("ASTC"):
-			dims = list(map(lambda x: int(x), format.split('_')[1:]))
-			if mortonWidth > 0:
-				textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
-				mortonWidth = 0
-			textureData = rapi.callExtensionMethod("astc_decoderaw32", textureData, dims[0], dims[1], 1, width, height, 1)
-			format = "r8 g8 b8 a8"
+		if not bRaw and format >= 0x1000:
+			textureData = ETC2Decoder().decode(textureData, format - 0x1000, width, height)
+			format = "r8 g8 b8 a8" if format >= 0x1046 else "r8 g8 b8"
+			bRaw = True
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
@@ -894,13 +891,9 @@ def processG1T(bs):
 				else:
 					textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
 			else:
-				if bRaw:
-					textureData = rapi.imageFromMortonOrder(textureData, width, height, mortonWidth)
-				else:
-					textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
+				textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
 		if bRaw:
-			if format != noesis.NOESISTEX_RGBA32 and format != "r8 g8 b8 a8":
-				textureData = rapi.imageDecodeRaw(textureData, width, height, format)
+			textureData = rapi.imageDecodeRaw(textureData, width, height, format)
 			format = noesis.NOESISTEX_RGBA32
 		else:
 			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
@@ -1487,6 +1480,7 @@ def LoadModel(data, mdlList):
 	global KeepDrawing
 	global endian
 	global morphMap
+	global nunvOffset
 	global G1MGM_MATERIAL_KEYS
 	debug = False
 	g1tData = None
@@ -1685,10 +1679,10 @@ def LoadModel(data, mdlList):
 	# =================================================================
 	if (bComputeCloth or noesis.optWasInvoked("-g1mcloth")):
 		NUNProps = []
-		nunoOffset = 0
+		nunvOffset = 0
 		clothMap = []
 		if (len(NUNO0303StructList) != 0):
-			nunoOffset = len(NUNO0303StructList)
+			nunvOffset = len(NUNO0303StructList)
 		if (len(NUNO0303StructList) != 0):
 			for nuno0303 in NUNO0303StructList:
 				NUNProps.append(nuno0303)
@@ -1697,7 +1691,7 @@ def LoadModel(data, mdlList):
 				NUNProps.append(nunv0303)
 		for prop in NUNProps:
 			boneStart = len(boneList)
-			parentBone = g1m.boneMapList[prop.parentBoneID - 1][0]
+			parentBone = boneIDList[prop.parentBoneID]
 			nunoMap = {}
 			driverMesh = Mesh()
 			driverMesh.vertCount = 0
@@ -2196,7 +2190,15 @@ def LoadModel(data, mdlList):
 				if(mesh.Has8Weights):
 					mesh.oldSkinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
 					mesh.skinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
-					mesh.skinWeightList2 = [[1, 0, 0, 0] for n in range(mesh.vertCount)]		
+					mesh.skinWeightList2 = [[1, 0, 0, 0] for n in range(mesh.vertCount)]
+		if (mesh.Has8Weights and len(mesh.skinWeightList2) == 0):
+			print("WRONG WEIGHTS EXPECTED ! NEEDS FIXING")
+			if len(mesh.oldSkinIndiceList2) > 0:				
+				mesh.skinWeightList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+			else:
+				mesh.oldSkinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+				mesh.skinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
+				mesh.skinWeightList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
 				
 		indiceBuffer = g1m.indiceBufferList[info[7]]
 		bs.seek(indiceBuffer.offset + info[12] * indiceBuffer.strideSize)
@@ -2229,7 +2231,10 @@ def LoadModel(data, mdlList):
 			submeshesIndex.append(index)
 			isClothType1List[index] = lod.ID & 0xF == 1
 			isClothType2List[index] = lod.ID & 0xF == 2
-			ID2s[index] = lod.ID2 & 0xF
+			if lod.ID2 >= 10000 and lod.ID2 < 20000:
+				ID2s[index] = (lod.ID2 & 0xF) + nunvOffset
+			else:				
+				ID2s[index] = lod.ID2 & 0xF
 	submeshesIndex = list(set(submeshesIndex))
 	KeepDrawing = True
 	currentMesh = 0
