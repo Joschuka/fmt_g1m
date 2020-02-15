@@ -2205,7 +2205,6 @@ def LoadModel(data, mdlList):
 					mesh.skinIndiceList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
 					mesh.skinWeightList2 = [[1, 0, 0, 0] for n in range(mesh.vertCount)]
 		if (mesh.Has8Weights and len(mesh.skinWeightList2) == 0):
-			print("WRONG WEIGHTS EXPECTED ! NEEDS FIXING")
 			if len(mesh.oldSkinIndiceList2) > 0:				
 				mesh.skinWeightList2 = [[0, 0, 0, 0] for n in range(mesh.vertCount)]
 			else:
