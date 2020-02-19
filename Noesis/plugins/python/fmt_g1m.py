@@ -10,22 +10,23 @@ from math import sqrt, sin, cos, floor
 # =================================================================
 
 #misc
-bLog = True				# Display log, with some progress info 
+bLog = True					# Display log, with some progress info 
 
 #cloth options
-bComputeCloth = True	# Compute cloth data and physics' drivers + fix cloth meshes using the NUNO/NUNV sections
-bDisplayCloth = True	# Discard cloth meshes or not, you may want to put it to false if cloth get in the way during animations since they won't move as they are supposed to be animated by the physics' engine at runtime
-bDisplayDrivers = True	# Discard cloth drivers and physics' bones or not
+bComputeCloth = True		# Compute cloth data and physics' drivers + fix cloth meshes using the NUNO/NUNV sections
+bDisplayCloth = True		# Discard cloth meshes or not, you may want to put it to false if cloth get in the way during animations since they won't move as they are supposed to be animated by the physics' engine at runtime
+bDisplayDrivers = True		# Discard cloth drivers and physics' bones or not
 
 #paired files options
-bLoadG1T = True			# Allow to choose a paired .g1t file
+bLoadG1T = True				# Allow to choose a paired .g1t file
 bLoadG1MS = True			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
 bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
-bLoadG1H = False			#Allow to choose a paired .g1h file
-G1HOffset = 20				#Offset between different morph targets
+bLoadG1H = False			# Allow to choose a paired .g1h file
+G1HOffset = 20				# Offset between different morph targets
+
 # =================================================================
 # Miscenalleous
 # =================================================================
@@ -42,12 +43,6 @@ def registerNoesisTypes():
 	handle = noesis.register("Koei Tecmo KTGL Model", ".g1m")
 	noesis.setHandlerTypeCheck(handle, CheckModelType)
 	noesis.setHandlerLoadModel(handle, LoadModel)
-	handle = noesis.register("Koei Tecmo KTGL Screen Layout Texture", ".kslt")
-	noesis.setHandlerTypeCheck(handle, CheckScreenLayoutTextureType)
-	noesis.setHandlerLoadRGBA(handle, LoadScreenLayoutTexture)
-	handle = noesis.register("Koei Tecmo Height Map", ".khm")
-	noesis.setHandlerTypeCheck(handle, CheckHeightMapType)
-	noesis.setHandlerLoadRGBA(handle, LoadHeightMapTexture)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
@@ -56,7 +51,13 @@ def registerNoesisTypes():
 	noesis.addOption(handle, "-g1manimationdir", "Load Specified Animations from directories", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mmorph", "Load morph targets from file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mcloth", "Compute Cloth Data", 0)
-	noesis.addOption(handle, "-g1mdriver", "Compute Driver Data", 0)		
+	noesis.addOption(handle, "-g1mdriver", "Compute Driver Data", 0)
+	handle = noesis.register("Koei Tecmo KTGL Screen Layout Texture", ".kslt")
+	noesis.setHandlerTypeCheck(handle, CheckScreenLayoutTextureType)
+	noesis.setHandlerLoadRGBA(handle, LoadScreenLayoutTexture)
+	handle = noesis.register("Koei Tecmo Height Map", ".khm")
+	noesis.setHandlerTypeCheck(handle, CheckHeightMapType)
+	noesis.setHandlerLoadRGBA(handle, LoadHeightMapTexture)
 	if (bLog):
 		noesis.logPopup()
 	return 1
