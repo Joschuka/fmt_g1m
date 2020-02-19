@@ -1,6 +1,6 @@
 from inc_noesis import *
 import os
-from math import sqrt, sin, cos
+from math import sqrt, sin, cos, floor
 # import rpdb
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
@@ -45,6 +45,9 @@ def registerNoesisTypes():
 	handle = noesis.register("Koei Tecmo KTGL Screen Layout Texture", ".kslt")
 	noesis.setHandlerTypeCheck(handle, CheckScreenLayoutTextureType)
 	noesis.setHandlerLoadRGBA(handle, LoadScreenLayoutTexture)
+	handle = noesis.register("Koei Tecmo Height Map", ".khm")
+	noesis.setHandlerTypeCheck(handle, CheckHeightMapType)
+	noesis.setHandlerLoadRGBA(handle, LoadHeightMapTexture)
 	noesis.addOption(handle, "-g1mskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mautoskeleton", "Override G1MS section from another file", noesis.OPTFLAG_WANTARG)
 	noesis.addOption(handle, "-g1mskeletonoid", "Read skeleton bone names from another file", noesis.OPTFLAG_WANTARG)
@@ -64,6 +67,8 @@ HEADER_G1T_BE = 0x47543147
 HEADER_G1T_LE = 0x47315447
 HEADER_KSLT_BE = 0x544C534B
 HEADER_KSLT_LE = 0x4B534C54
+HEADER_KHM_BE = 0x5F4D484B
+HEADER_KHM_LE = 0x4B484D5F
 
 # =================================================================
 # Noesis check type
@@ -101,6 +106,18 @@ def CheckScreenLayoutTextureType(data):
 	bs.seek(0, NOESEEK_ABS)
 	id = bs.readInt()
 	if id not in [HEADER_KSLT_LE,HEADER_KSLT_BE]:
+		print("Header not recognized")
+		return 0
+	return 1
+
+def CheckHeightMapType(data):
+	bs = NoeBitStream(data)
+	if len(data) < 0x20:
+		print("Invalid KHM file, too small")
+		return 0
+	bs.seek(0, NOESEEK_ABS)
+	id = bs.readInt()
+	if id not in [HEADER_KHM_LE,HEADER_KHM_BE]:
 		print("Header not recognized")
 		return 0
 	return 1
@@ -1029,6 +1046,32 @@ def processKSLT(bs):
 	return 1
 
 # =================================================================
+# KHM Height Map Texture
+# =================================================================
+
+def processKHM(bs):
+	if bLog:
+		noesis.logPopup()
+	magic = bs.read('<i')[0]
+	if magic == HEADER_KHM_BE:
+		endiankslt = NOE_BIGENDIAN
+	elif magic == HEADER_KHM_LE:
+		endiankslt = NOE_LITTLEENDIAN
+	bs.setEndian(endiankslt)
+	bs.read('2i')
+	size = bs.readUInt()
+	width = bs.readUShort() + 1
+	height = bs.readUShort() + 1
+	floorlevel = bs.readFloat()
+	midlevel = bs.readFloat()
+	ceilinglevel = bs.readFloat()
+	buffer = [[floor(255 * (bs.readUInt() / 0xFFFFFFFF))] * 3 for j in range(width * height)]
+	buffer = bytes([y for x in buffer for y in x])
+	buffer = rapi.imageDecodeRaw(buffer, width, height, "r8g8b8")
+	print("Loaded Heightmap; Size %X (%dx%d)" % (size, width, height))
+	return NoeTexture('dummy.dds', width, height, buffer, noesis.NOESISTEX_RGBA32)
+
+# =================================================================
 # G1H Morph Targets 
 # =================================================================
 
@@ -1467,6 +1510,15 @@ def LoadScreenLayoutTexture(data, texList):
 	processKSLT(ksltBs)
 	for tex in textureList:
 		texList.append(tex)
+	return 1
+
+# =================================================================
+# Noesis load height map texture
+# =================================================================
+
+def LoadHeightMapTexture(data, texList):
+	khmBs = NoeBitStream(data)
+	texList.append(processKHM(khmBs))
 	return 1
 
 # =================================================================
