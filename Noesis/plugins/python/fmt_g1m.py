@@ -815,7 +815,7 @@ def processG1T(bs):
 			format = "r8 g8 b8 a8"	
 		elif (textureFormat == 0x1):
 			computedSize = width * height * 4
-			format = "r8 g8 b8 a8"	
+			format = "b8 g8 r8 a8"	
 		elif (textureFormat == 0x2):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x3):
