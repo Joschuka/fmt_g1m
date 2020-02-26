@@ -431,7 +431,7 @@ def processChunkType9(bs):
 def parseG1MS(currentPosition, bs, isDefault = True):
 	jointDataOffset = bs.readUInt()
 	conditionNumber = bs.readUShort()
-	if isDefault and conditionNumber == 0:
+	if isDefault: # and conditionNumber == 0: (seemed to work on most models but found out that broke some of them)
 		print("Skeleton layering detected...");
 		if g1sData is not None: # Skeleton Layer
 			bs2 = NoeBitStream(g1sData)
@@ -826,6 +826,10 @@ def processG1T(bs):
 			format = noesis.NOESISTEX_DXT3
 		elif (textureFormat == 0x8):
 			format = noesis.NOESISTEX_DXT5
+		elif (textureFormat == 0x9 or textureFormat == 0xA):
+			computedSize = width * height * 4
+			format = "b8 g8 r8 a8"
+			mortonWidth = 0x20
 		elif (textureFormat == 0xF):
 			computedSize = width * height 
 			format = "a8"			
