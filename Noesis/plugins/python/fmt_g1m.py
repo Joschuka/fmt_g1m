@@ -810,6 +810,7 @@ def processG1T(bs):
 				height = bs.readUInt()
 		computedSize = -1
 		mortonWidth = 0
+		bNormalized = False
 		if (textureFormat == 0x0):
 			computedSize = width * height * 4
 			format = "r8 g8 b8 a8"	
@@ -873,6 +874,10 @@ def processG1T(bs):
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
 			mortonWidth = 8
+		elif (textureFormat == 0x64):
+			format = noesis.FOURCC_BC5
+			mortonWidth = 8
+			bNormalized = False
 		elif (textureFormat == 0x65):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
@@ -931,7 +936,10 @@ def processG1T(bs):
 				textureData = rapi.imageDecodeRaw(textureData, width, height, format)
 			format = noesis.NOESISTEX_RGBA32
 		else:
-			textureData = rapi.imageDecodeDXT(textureData, width, height, format)
+			if(bNormalized):
+				textureData = rapi.imageDecodeDXT(textureData, width, height, format)
+			else:
+				textureData = rapi.imageDecodeDXT(textureData, width, height, format,0.0,1)
 			format = noesis.NOESISTEX_RGBA32
 		texture = NoeTexture(textureName, width, height, textureData, format)
 		textureList.append(texture)
