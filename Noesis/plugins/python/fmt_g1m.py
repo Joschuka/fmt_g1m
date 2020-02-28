@@ -23,7 +23,7 @@ bLoadG1MS = True			# Allow to choose a paired .g1m skeleton file. Only choose th
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
 bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
-bLoadG1AG2AFolder = True	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
+bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 bLoadG1H = False			# Allow to choose a paired .g1h file
 G1HOffset = 20				# Offset between different morph targets
 
@@ -429,6 +429,8 @@ def processChunkType9(bs):
 
 
 def parseG1MS(currentPosition, bs, isDefault = True):
+	global hasParsedExternal
+	global externalOffsetList
 	jointDataOffset = bs.readUInt()
 	conditionNumber = bs.readUShort()
 	if isDefault: # and conditionNumber == 0: (seemed to work on most models but found out that broke some of them)
@@ -439,40 +441,70 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 			A = [bs2.readUInt() for j in range(6)]
 			bs2.seek(A[3])
 			for i in range(A[5]):
-				currentPosition = bs2.tell()
+				currentPosition2 = bs2.tell()
 				chunkName = bs2.readInt()
 				chunkVersion = noeStrFromBytes(bs2.readBytes(4))
 				chunkSize = bs2.readInt()
 				if chunkName == 0x47314D53:
-					return parseG1MS(currentPosition, bs2, False)
-				bs2.seek(currentPosition + chunkSize)
+					parseG1MS(currentPosition2, bs2, False)
+					hasParsedExternal = True
+				bs2.seek(currentPosition2 + chunkSize)
 	bs.readUShort()
 	jointCount = bs.readUShort()
 	jointIndicesCount = bs.readUShort()
 	bs.read('I')
-	if (debug):
-		print("Skeleton with " + str(jointCount) + " bones and " + str(jointIndicesCount) + " indices")
-	for i in range(jointIndicesCount):
-		id = bs.readUShort()
-		boneIDList.append(id)
-		if (id != 0xFFFF):
-			boneToBoneID[id] = i
-	bs.seek(currentPosition + jointDataOffset)
-	for i in range(jointCount):
-		bs.read('3f')  # scale
-		parentID = bs.readInt()
-		quaternionRotation = [bs.readFloat() for j in range(4)]
-		position = [bs.readFloat() for j in range(3)]
-		bs.read('f')
-		boneMatrixTransform = NoeQuat(quaternionRotation).toMat43().inverse()
-		boneMatrixTransform[3] = NoeVec3(position)
-		bone = NoeBone(i, 'bone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID)
-		boneList.append(bone)
-	for bone in boneList:
-		parentId = bone.parentIndex
-		if parentId != -1:
-			bone.setMatrix(bone.getMatrix() * boneList[parentId].getMatrix())
-	print("Skeleton parsed")
+	if not hasParsedExternal:
+		for i in range(jointIndicesCount):
+			id = bs.readUShort()
+			boneIDList.append(id)
+			if (id != 0xFFFF):
+				boneToBoneID[id] = i
+		bs.seek(currentPosition + jointDataOffset)
+		for i in range(jointCount):
+			bs.read('3f')  # scale
+			parentID = bs.readInt()
+			quaternionRotation = [bs.readFloat() for j in range(4)]
+			position = [bs.readFloat() for j in range(3)]
+			bs.read('f')
+			boneMatrixTransform = NoeQuat(quaternionRotation).toMat43().inverse()
+			boneMatrixTransform[3] = NoeVec3(position)
+			bone = NoeBone(i, 'bone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID)
+			boneList.append(bone)
+		for bone in boneList:
+			parentId = bone.parentIndex
+			if parentId != -1:
+				bone.setMatrix(bone.getMatrix() * boneList[parentId].getMatrix())
+		print("Skeleton parsed")
+	else:
+		if jointIndicesCount == len(boneIDList):
+			hasParsedExternal = False
+			return 1
+		externalOffset = len(boneIDList)
+		externalOffsetList = len(boneList)
+		for i in range(jointIndicesCount):
+			id = bs.readUShort()
+			if i >= externalOffset or i ==0:
+				boneIDList.append(id + externalOffsetList +1)
+			if (id != 0xFFFF and i != 0):
+				boneToBoneID[id + externalOffsetList] = i
+		bs.seek(currentPosition + jointDataOffset)
+		for i in range(jointCount):
+			bs.read('3f')  # scale
+			parentID = bs.readInt()
+			quaternionRotation = [bs.readFloat() for j in range(4)]
+			position = [bs.readFloat() for j in range(3)]
+			bs.read('f')
+			boneMatrixTransform = NoeQuat(quaternionRotation).toMat43().inverse()
+			boneMatrixTransform[3] = NoeVec3(position)
+			if parentID < 0:
+				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID & 0xFFFF)
+				bone.setMatrix(bone.getMatrix() * boneList[parentID & 0xFFFF].getMatrix())
+				boneList.append(bone)
+			else:
+				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID + externalOffsetList)
+				bone.setMatrix(bone.getMatrix() * boneList[parentID +externalOffsetList].getMatrix())
+				boneList.append(bone)
+		print("Skeleton parsed")			
 	return 1
 
 def parseG1MOid(bs, plaintext):
@@ -1560,6 +1592,8 @@ def LoadModel(data, mdlList):
 	global morphMap
 	global nunvOffset
 	global G1MGM_MATERIAL_KEYS
+	global hasParsedExternal
+	global externalOffsetList
 	debug = False
 	g1tData = None
 	g1sData = None
@@ -1569,6 +1603,9 @@ def LoadModel(data, mdlList):
 	g1hData = None
 	animDir = None
 	globalFramerate = None
+	nunvOffset = 0
+	hasParsedExternal = False
+	externalOffsetList = 0
 	textureList = []
 	boneList = []
 	boneIDList = []
@@ -1809,7 +1846,7 @@ def LoadModel(data, mdlList):
 	# =================================================================
 	# Semantics and submeshes
 	# =================================================================
-
+	
 	print("Mesh info parsing, may take a few seconds for some games")
 	for infoID in range(len(g1m.meshInfoList)):
 		info = g1m.meshInfoList[infoID]
@@ -2339,6 +2376,11 @@ def LoadModel(data, mdlList):
 							mesh.vertPosBuff[v] = boneList[index].getMatrix()[3] + NoeVec3(
 								[quat2[0], quat2[1], quat2[2]])
 							rootFixFlag = True
+							if hasParsedExternal:
+								for k in range(4):
+									if mesh.skinIndiceList[v][k] != 0:
+										mesh.skinIndiceList[v][k] += externalOffsetList
+							
 		if (isClothType1List[currentMesh] and (bComputeCloth or noesis.optWasInvoked("-g1mcloth"))):
 			nunoMap = clothMap[ID2s[currentMesh]]
 			count = mesh.vertCount
@@ -2423,10 +2465,11 @@ def LoadModel(data, mdlList):
 			for k in range(3):
 				finalVertexNormBuffer += noePack(endianC + 'f', vertex[k])
 		# UVs
-		for v in range(mesh.vertCount):
-			vertex = mesh.vertUVBuff[v]
-			for k in range(2):
-				finalVertexUVBuffer += noePack(endianC + 'f', vertex[k])
+		if len(mesh.vertUVBuff) > 0:
+			for v in range(mesh.vertCount):
+				vertex = mesh.vertUVBuff[v]
+				for k in range(2):
+					finalVertexUVBuffer += noePack(endianC + 'f', vertex[k])
 				
 		if len(mesh.vertUV1Buff) > 0:
 			for v in range(mesh.vertCount):
@@ -2474,12 +2517,12 @@ def LoadModel(data, mdlList):
 						finalIndiceList += noePack(endianC + 'H', int(vertex[k]) & 0xFFFF)
 		rapi.rpgClearBufferBinds()
 		rapi.rpgBindPositionBuffer(finalVertexPosBuffer, noesis.RPGEODATA_FLOAT, 12)
-		rapi.rpgBindUV1Buffer(finalVertexUVBuffer, noesis.RPGEODATA_FLOAT, 8)
 		rapi.rpgBindNormalBuffer(finalVertexNormBuffer, noesis.RPGEODATA_FLOAT, 12)
 		# rapi.rpgBindColorBuffer(finalColorBuffer, noesis.RPGEODATA_FLOAT,16,4)
 		# if(len(mesh.tangentBuffer)>0):
 		# rapi.rpgBindTangentBuffer(finalTangentBuffer,noesis.RPGEODATA_FLOAT,16)
-		
+		if len(mesh.vertUVBuff) > 0:
+			rapi.rpgBindUV1Buffer(finalVertexUVBuffer, noesis.RPGEODATA_FLOAT, 8)
 		if len(mesh.vertUV1Buff) > 0:
 			rapi.rpgBindUV2Buffer(finalVertexUV1Buffer, noesis.RPGEODATA_FLOAT, 8)
 		if len(mesh.vertUV2Buff) > 0:
