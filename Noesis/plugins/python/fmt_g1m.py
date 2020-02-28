@@ -810,7 +810,7 @@ def processG1T(bs):
 				height = bs.readUInt()
 		computedSize = -1
 		mortonWidth = 0
-		bNormalized = False
+		bNormalized = True
 		if (textureFormat == 0x0):
 			computedSize = width * height * 4
 			format = "r8 g8 b8 a8"	
