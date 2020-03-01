@@ -2517,7 +2517,8 @@ def LoadModel(data, mdlList):
 						finalIndiceList += noePack(endianC + 'H', int(vertex[k]) & 0xFFFF)
 		rapi.rpgClearBufferBinds()
 		rapi.rpgBindPositionBuffer(finalVertexPosBuffer, noesis.RPGEODATA_FLOAT, 12)
-		rapi.rpgBindNormalBuffer(finalVertexNormBuffer, noesis.RPGEODATA_FLOAT, 12)
+		if not isClothType1List[currentMesh]:
+			rapi.rpgBindNormalBuffer(finalVertexNormBuffer, noesis.RPGEODATA_FLOAT, 12)
 		# rapi.rpgBindColorBuffer(finalColorBuffer, noesis.RPGEODATA_FLOAT,16,4)
 		# if(len(mesh.tangentBuffer)>0):
 		# rapi.rpgBindTangentBuffer(finalTangentBuffer,noesis.RPGEODATA_FLOAT,16)
