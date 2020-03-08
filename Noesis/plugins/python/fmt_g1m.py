@@ -431,6 +431,7 @@ def processChunkType9(bs):
 def parseG1MS(currentPosition, bs, isDefault = True):
 	global hasParsedExternal
 	global externalOffsetList
+	global externalOffsetMax
 	jointDataOffset = bs.readUInt()
 	conditionNumber = bs.readUShort()
 	if isDefault: # and conditionNumber == 0: (seemed to work on most models but found out that broke some of them)
@@ -489,6 +490,7 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 				boneToBoneID[id + externalOffsetList] = i
 		bs.seek(currentPosition + jointDataOffset)
 		for i in range(jointCount):
+			externalOffsetMax+=1
 			bs.read('3f')  # scale
 			parentID = bs.readInt()
 			quaternionRotation = [bs.readFloat() for j in range(4)]
@@ -1594,6 +1596,7 @@ def LoadModel(data, mdlList):
 	global G1MGM_MATERIAL_KEYS
 	global hasParsedExternal
 	global externalOffsetList
+	global externalOffsetMax
 	debug = False
 	g1tData = None
 	g1sData = None
@@ -1606,6 +1609,7 @@ def LoadModel(data, mdlList):
 	nunvOffset = 0
 	hasParsedExternal = False
 	externalOffsetList = 0
+	externalOffsetMax = 0
 	textureList = []
 	boneList = []
 	boneIDList = []
@@ -2378,7 +2382,7 @@ def LoadModel(data, mdlList):
 							rootFixFlag = True
 							if hasParsedExternal:
 								for k in range(4):
-									if mesh.skinIndiceList[v][k] != 0:
+									if mesh.skinIndiceList[v][k] != 0 and mesh.skinIndiceList[v][k] < externalOffsetMax:
 										mesh.skinIndiceList[v][k] += externalOffsetList
 							
 		if (isClothType1List[currentMesh] and (bComputeCloth or noesis.optWasInvoked("-g1mcloth"))):
