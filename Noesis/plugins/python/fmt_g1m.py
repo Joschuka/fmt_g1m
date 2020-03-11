@@ -1800,6 +1800,7 @@ def LoadModel(data, mdlList):
 		NUNProps = []
 		nunvOffset = 0
 		clothMap = []
+		clothParentIDMap = []
 		if (len(NUNO0303StructList) != 0):
 			nunvOffset = len(NUNO0303StructList)
 		if (len(NUNO0303StructList) != 0):
@@ -1846,6 +1847,7 @@ def LoadModel(data, mdlList):
 				if (link.P2 > 0 and link.P4 > 0):
 					driverMesh.triangles.append(NoeVec3([int(pointIndex), int(link.P2), int(link.P4)]))
 			clothMap.append(nunoMap)
+			clothParentIDMap.append(parentBone)
 			driverMeshList.append(driverMesh)
 	# =================================================================
 	# Semantics and submeshes
@@ -2392,12 +2394,7 @@ def LoadModel(data, mdlList):
 				rootFixFlag = True
 				for v in range(count):
 					if (mesh.binormalBuffer[v] == NoeVec4()):
-						mesh.vertPosBuff[v] = boneList[
-							g1m.boneMapList[g1m.meshInfoList[currentMesh][2]][0]].getMatrix().transformPoint(
-							mesh.vertPosBuff[v])
-						mesh.vertNormBuff[v] = boneList[
-							g1m.boneMapList[g1m.meshInfoList[currentMesh][2]][0]].getMatrix().transformNormal(
-							mesh.vertNormBuff[v])
+						mesh.vertPosBuff[v] = boneList[clothParentIDMap[ID2s[currentMesh]]].getMatrix().transformPoint(mesh.vertPosBuff[v])
 						continue
 					clothPosition = NoeVec4([mesh.vertPosBuff[v][0], mesh.vertPosBuff[v][1], mesh.vertPosBuff[v][2],
 											 mesh.clothStuff3Buffer[v]])
