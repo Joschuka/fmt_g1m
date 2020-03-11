@@ -1525,7 +1525,7 @@ def processG1A(bs, animCount, animName, endian):
 # Function used when transforming cloth type 1 vertices
 # =================================================================
 
-def processClothVertex(position, weights, bones, nunoMap):
+def computeCenterOfMass(position, weights, bones, nunoMap):
 	temp = NoeVec3()
 	temp += boneList[nunoMap[int(bones[0])]].getMatrix().transformPoint(position) * weights[0]
 	temp += boneList[nunoMap[int(bones[1])]].getMatrix().transformPoint(position) * weights[1]
@@ -2399,37 +2399,37 @@ def LoadModel(data, mdlList):
 					clothPosition = NoeVec4([mesh.vertPosBuff[v][0], mesh.vertPosBuff[v][1], mesh.vertPosBuff[v][2],
 											 mesh.clothStuff3Buffer[v]])
 					position = NoeVec3()
-					d4 = NoeVec3()
-					d4 += processClothVertex(position, clothPosition, mesh.oldSkinIndiceList[v], nunoMap) * \
+					a = NoeVec3()
+					a += computeCenterOfMass(position, clothPosition, mesh.oldSkinIndiceList[v], nunoMap) * \
 						  mesh.skinWeightList[v][0]
-					d4 += processClothVertex(position, clothPosition, mesh.clothStuff1Buffer[v], nunoMap) * \
+					a += computeCenterOfMass(position, clothPosition, mesh.clothStuff1Buffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][1]
-					d4 += processClothVertex(position, clothPosition, mesh.fogBuffer[v], nunoMap) * \
+					a += computeCenterOfMass(position, clothPosition, mesh.fogBuffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][2]
-					d4 += processClothVertex(position, clothPosition, mesh.clothStuff2Buffer[v], nunoMap) * \
+					a += computeCenterOfMass(position, clothPosition, mesh.clothStuff2Buffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][3]
 
-					d5 = NoeVec3()
-					d5 += processClothVertex(position, clothPosition, mesh.oldSkinIndiceList[v], nunoMap) * \
+					b = NoeVec3()
+					b += computeCenterOfMass(position, clothPosition, mesh.oldSkinIndiceList[v], nunoMap) * \
 						  mesh.clothStuff5Buffer[v][0]
-					d5 += processClothVertex(position, clothPosition, mesh.clothStuff1Buffer[v], nunoMap) * \
+					b += computeCenterOfMass(position, clothPosition, mesh.clothStuff1Buffer[v], nunoMap) * \
 						  mesh.clothStuff5Buffer[v][1]
-					d5 += processClothVertex(position, clothPosition, mesh.fogBuffer[v], nunoMap) * \
+					b += computeCenterOfMass(position, clothPosition, mesh.fogBuffer[v], nunoMap) * \
 						  mesh.clothStuff5Buffer[v][2]
-					d5 += processClothVertex(position, clothPosition, mesh.clothStuff2Buffer[v], nunoMap) * \
+					b += computeCenterOfMass(position, clothPosition, mesh.clothStuff2Buffer[v], nunoMap) * \
 						  mesh.clothStuff5Buffer[v][3]
 
-					d6 = NoeVec3()
-					d6 += processClothVertex(position, mesh.binormalBuffer[v], mesh.oldSkinIndiceList[v], nunoMap) * \
+					c = NoeVec3()
+					c += computeCenterOfMass(position, mesh.binormalBuffer[v], mesh.oldSkinIndiceList[v], nunoMap) * \
 						  mesh.skinWeightList[v][0]
-					d6 += processClothVertex(position, mesh.binormalBuffer[v], mesh.clothStuff1Buffer[v], nunoMap) * \
+					c += computeCenterOfMass(position, mesh.binormalBuffer[v], mesh.clothStuff1Buffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][1]
-					d6 += processClothVertex(position, mesh.binormalBuffer[v], mesh.fogBuffer[v], nunoMap) * \
+					c += computeCenterOfMass(position, mesh.binormalBuffer[v], mesh.fogBuffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][2]
-					d6 += processClothVertex(position, mesh.binormalBuffer[v], mesh.clothStuff2Buffer[v], nunoMap) * \
+					c += computeCenterOfMass(position, mesh.binormalBuffer[v], mesh.clothStuff2Buffer[v], nunoMap) * \
 						  mesh.skinWeightList[v][3]
 
-					mesh.vertPosBuff[v] = d5.cross(d6) * mesh.clothStuff4Buffer[v] + d4
+					mesh.vertPosBuff[v] = b.cross(c) * mesh.clothStuff4Buffer[v] + a
 					mesh.skinWeightList[v] = NoeVec4()
 					mesh.skinIndiceList[v] = NoeVec4()
 		finalVertexPosBuffer = bytes()
