@@ -264,12 +264,12 @@ G1MGM_MATERIAL_KEYS = [None, "COLOR", "SHADING", "NORMAL", None, "DIRT"]
 # G1M's chunks and sections parsers
 # =================================================================
 
-def processChunkType1(bs):
+def processChunkType1(chunkVersion,bs):
 	# ??????
 	return 1
 
 
-def processChunkType2(bs):
+def processChunkType2(chunkVersion,bs):
 	# Materials
 	count = bs.readInt()
 	for i in range(count):
@@ -293,13 +293,11 @@ def processChunkType2(bs):
 			print("Found Texture Material Info: (%d, %d, %d, %d, %s)" % (texture.id, texture.layer, texture.type, texture.subtype, texture.key))
 		g1m.textureList.append(List)
 
-
-def processChunkType3(bs):
+def processChunkType3(chunkVersion,bs):
 	# Shader section, we skip
 	return 1
 
-
-def processChunkType4(bs):
+def processChunkType4(chunkVersion,bs):
 	# Vertex buffer
 	count = bs.readInt()
 	for j in range(count):
@@ -307,13 +305,13 @@ def processChunkType4(bs):
 		bs.readInt()
 		buffer.strideSize = bs.readInt()
 		buffer.elementCount = bs.readInt()
-		bs.readInt()
+		if chunkVersion>0x30303430:
+			bs.readInt()
 		buffer.offset = bs.tell()
 		g1m.vertBufferList.append(buffer)
 		bs.seek(buffer.elementCount * buffer.strideSize, 1)
 
-
-def processChunkType5(bs):
+def processChunkType5(chunkVersion,bs):
 	# Specs
 	count = bs.readInt()
 	for i in range(count):
@@ -335,8 +333,7 @@ def processChunkType5(bs):
 			spec.list.append(vertSpec)
 		g1m.specList.append(spec)
 
-
-def processChunkType6(bs):
+def processChunkType6(chunkVersion,bs):
 	# Joint map info
 	count = bs.readInt()
 	for i in range(count):
@@ -355,15 +352,15 @@ def processChunkType6(bs):
 		g1m.boneMapList.append(List1)
 		g1m.boneMapListCloth.append(List2)
 
-
-def processChunkType7(bs):
+def processChunkType7(chunkVersion,bs):
 	# Index buffer
 	count = bs.readUInt()
 	for i in range(count):
 		buffer = Buffer()
 		buffer.elementCount = bs.readUInt()
 		typeHandler = bs.readUInt()
-		bs.readUInt()
+		if chunkVersion>0x30303430:
+			bs.readUInt()
 		if typeHandler == 0x08:
 			buffer.strideSize = 1
 		elif typeHandler == 0x10:
@@ -377,14 +374,12 @@ def processChunkType7(bs):
 		Align(bs, 4)
 		g1m.indiceBufferList.append(buffer)
 
-
-def processChunkType8(bs):
+def processChunkType8(chunkVersion,bs):
 	# Submeshes' info
 	count = bs.readUInt()
 	for i in range(count):
 		# CRITICAL check if the entry is valid
 		g1m.meshInfoList.append([bs.readUInt() for j in range(14)])
-
 	# Unknown             0x0000
 	# VertexBufferID      0x0001
 	# IndexIntoJointMap   0x0002
@@ -401,7 +396,7 @@ def processChunkType8(bs):
 	# IndexBufferCount    0x000D
 
 
-def processChunkType9(bs):
+def processChunkType9(chunkVersion,bs):
 	# LOD info
 	count = bs.readUInt()
 	for i in range(count):
@@ -409,11 +404,12 @@ def processChunkType9(bs):
 		bs.read('3i')
 		meshCount1 = bs.readUInt()
 		meshCount2 = bs.readUInt()
-		bs.read('4i')
+		if chunkVersion>0x30303430:
+			bs.read('4i')
 		lodMeshContainer.count = meshCount1 + meshCount2
 		for j in range(meshCount1 + meshCount2):
 			lod = LOD()
-			lod.name = noeStrFromBytes(bs.readBytes(16))
+			lod.name = bs.readBytes(16)
 			lod.ID = bs.readUInt()
 			lod.ID2 = bs.readUInt()
 			indexCount = bs.readUInt()
@@ -426,7 +422,6 @@ def processChunkType9(bs):
 				bs.readUInt()
 			lodMeshContainer.list.append(lod)
 		g1m.lodList.append(lodMeshContainer)
-
 
 def parseG1MS(currentPosition, bs, isDefault = True):
 	global hasParsedExternal
@@ -449,6 +444,8 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 				if chunkName == 0x47314D53:
 					parseG1MS(currentPosition2, bs2, False)
 					hasParsedExternal = True
+				elif chunkName == 0x4E554E53:
+					parseNUNS(chunkVersion, bs2)
 				bs2.seek(currentPosition2 + chunkSize)
 	bs.readUShort()
 	jointCount = bs.readUShort()
@@ -556,7 +553,7 @@ def parseG1MF(bs):
 	if (debug):
 		print("Mesh Count = " + str(g1m.meshCount))
 
-def parseG1MG(bs):
+def parseG1MG(chunkVersion, bs):
 	platform = noeStrFromBytes(bs.readBytes(4))  # NX_ for Switch for example
 	bs.readFloat()  # unknown
 	# Bounding box info
@@ -581,23 +578,23 @@ def parseG1MG(bs):
 		chunkName = bs.readInt()
 		chunkSize = bs.readInt()
 		if (chunkName == 0x00010001):
-			processChunkType1(bs)
+			processChunkType1(chunkVersion,bs)
 		elif (chunkName == 0x00010002):
-			processChunkType2(bs)
+			processChunkType2(chunkVersion,bs)
 		elif (chunkName == 0x00010003):
-			processChunkType3(bs)
+			processChunkType3(chunkVersion,bs)
 		elif (chunkName == 0x00010004):
-			processChunkType4(bs)
+			processChunkType4(chunkVersion,bs)
 		elif (chunkName == 0x00010005):
-			processChunkType5(bs)
+			processChunkType5(chunkVersion,bs)
 		elif (chunkName == 0x00010006):
-			processChunkType6(bs)
+			processChunkType6(chunkVersion,bs)
 		elif (chunkName == 0x00010007):
-			processChunkType7(bs)
+			processChunkType7(chunkVersion,bs)
 		elif (chunkName == 0x00010008):
-			processChunkType8(bs)
+			processChunkType8(chunkVersion,bs)
 		elif (chunkName == 0x00010009):
-			processChunkType9(bs)
+			processChunkType9(chunkVersion,bs)
 		else:
 			print("Error, unknown G1MG section")
 			return 0
@@ -609,7 +606,7 @@ def parseG1MG(bs):
 # =================================================================
 
 # NUNO influence data structure
-class NUNOInfluence:
+class NUNInfluence:
 	def __init__(self):
 		self.P1 = None
 		self.P2 = None
@@ -617,6 +614,8 @@ class NUNOInfluence:
 		self.P4 = None
 		self.P5 = None
 		self.P6 = None
+		self.P7 = None
+		self.P8 = None
 
 
 # NUNO 0302 type struct
@@ -646,8 +645,9 @@ def parseNUNOSection0301(chunkVersion, bs):
 	skip1 = bs.readInt()
 	skip2 = bs.readInt()
 	skip3 = bs.readInt()
-
-	bs.readBytes(0x4C)
+	bs.readBytes(0x3C)
+	if (chunkVersion > 0x30303233):
+		bs.readBytes(0x10)
 	if (chunkVersion >= 0x30303235):
 		bs.readBytes(0x10)
 
@@ -655,7 +655,7 @@ def parseNUNOSection0301(chunkVersion, bs):
 		nunotype0301.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
 		bs.read('f')
 	for i in range(controlPointCount):
-		influence = NUNOInfluence()
+		influence = NUNInfluence()
 		influence.P1 = bs.readInt()
 		influence.P2 = bs.readInt()
 		influence.P3 = bs.readInt()
@@ -704,7 +704,7 @@ def parseNUNOSection0303(chunkVersion, bs):
 		nunotype0303.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
 		bs.read('f')
 	for i in range(controlPointCount):
-		influence = NUNOInfluence()
+		influence = NUNInfluence()
 		influence.P1 = bs.readInt()
 		influence.P2 = bs.readInt()
 		influence.P3 = bs.readInt()
@@ -765,7 +765,7 @@ def parseNUNVSection0501(chunkVersion, bs):
 		nunvtype0501.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
 		bs.read('f')
 	for i in range(controlPointCount):
-		influence = NUNOInfluence()
+		influence = NUNInfluence()
 		influence.P1 = bs.readInt()
 		influence.P2 = bs.readInt()
 		influence.P3 = bs.readInt()
@@ -795,7 +795,67 @@ def parseNUNV(chunkVersion, bs):
 			else:
 				print("Unsupported NUNVSubChunk")
 		bs.seek(currentPosition + subChunkSize)
+		
 
+# =================================================================
+# NUNS helper structs, parser and info. Same kind of structs as NUNO
+# =================================================================
+def parseNUNSSection0601(chunkVersion, bs):
+	nunstype0601 = NUNOType0303Struct()  # same struct
+	nunstype0601.name = "nuns"
+	a = bs.readUByte()
+	bs.readUByte()
+	b = bs.readUShort()
+	a = 0
+	nunstype0601.parentBoneID = a if endian == NOE_LITTLEENDIAN else b		
+	controlPointCount = bs.readUInt()
+	unk1 = bs.readUInt()
+	unk2 = bs.readUInt()
+	unk3 = bs.readUInt()
+	unk4 = bs.readUInt()
+	skip1 = bs.readUInt()
+	bs.readBytes(0xA4)
+	
+
+	for i in range(controlPointCount):
+		nunstype0601.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
+		bs.read('f')
+	for i in range(controlPointCount):
+		influence = NUNInfluence()
+		influence.P1 = bs.readInt()
+		influence.P2 = bs.readInt()
+		influence.P3 = bs.readInt()
+		influence.P4 = bs.readInt()
+		influence.P5 = bs.readFloat()
+		influence.P6 = bs.readFloat()
+		influence.P7 = bs.readInt()
+		influence.P8 = bs.readInt()
+		nunstype0601.influences.append(influence)
+	bs.readBytes(skip1)
+	
+	#BLWO 
+	bs.readBytes(8)
+	blwoSize = bs.readUInt()
+	bs.readBytes(blwoSize)
+	bs.readBytes(0xC)
+
+	NUNS0303StructList.append(nunstype0601)
+
+
+def parseNUNS(chunkVersion, bs):
+	# number of sections
+	count = bs.readInt()
+	for i in range(count):
+		currentPosition = bs.tell()
+		subChunkType = bs.readInt()
+		subChunkSize = bs.readInt()
+		subChunkCount = bs.readInt()
+		for j in range(subChunkCount):
+			if (subChunkType == 0x00060001):
+				parseNUNSSection0601(chunkVersion, bs)
+			else:
+				print("Unsupported NUNVSubChunk")
+		bs.seek(currentPosition + subChunkSize)
 # =================================================================
 # The G1T parser, all info about textures is there
 # =================================================================
@@ -1585,6 +1645,7 @@ def LoadModel(data, mdlList):
 	global NUNO0302StructList
 	global NUNO0303StructList
 	global NUNV0303StructList
+	global NUNS0303StructList
 	global debug
 	global globalFramerate
 	global submeshesCount
@@ -1593,6 +1654,7 @@ def LoadModel(data, mdlList):
 	global endian
 	global morphMap
 	global nunvOffset
+	global nunsOffset
 	global G1MGM_MATERIAL_KEYS
 	global hasParsedExternal
 	global externalOffsetList
@@ -1607,6 +1669,7 @@ def LoadModel(data, mdlList):
 	animDir = None
 	globalFramerate = None
 	nunvOffset = 0
+	nunsOffset = 0
 	hasParsedExternal = False
 	externalOffsetList = 0
 	externalOffsetMax = 0
@@ -1620,6 +1683,7 @@ def LoadModel(data, mdlList):
 	NUNO0302StructList = []
 	NUNO0303StructList = []
 	NUNV0303StructList = []
+	NUNS0303StructList = []
 
 	ctx = rapi.rpgCreateContext()
 	bs = NoeBitStream(data)
@@ -1712,13 +1776,15 @@ def LoadModel(data, mdlList):
 			parseG1MS(currentPosition, bs)
 			hasNotParsedg1ms = False
 		elif chunkName == 0x47314D47:
-			parseG1MG(bs)
+			parseG1MG(chunkVersion,bs)
 		elif chunkName == 0x47314D46:
 			parseG1MF(bs)
 		elif chunkName == 0x4E554E4F:
 			parseNUNO(chunkVersion, bs)
 		elif chunkName == 0x4E554E56:
 			parseNUNV(chunkVersion, bs)
+		elif chunkName == 0x4E554E53:
+			parseNUNS(chunkVersion, bs)
 		# elif chunkName==0x47314D4D:
 		# parseG1MM(bs)
 		bs.seek(currentPosition + chunkSize)	
@@ -1799,16 +1865,17 @@ def LoadModel(data, mdlList):
 	if (bComputeCloth or noesis.optWasInvoked("-g1mcloth")):
 		NUNProps = []
 		nunvOffset = 0
+		nunsOffset = 0
 		clothMap = []
 		clothParentIDMap = []
-		if (len(NUNO0303StructList) != 0):
-			nunvOffset = len(NUNO0303StructList)
-		if (len(NUNO0303StructList) != 0):
-			for nuno0303 in NUNO0303StructList:
-				NUNProps.append(nuno0303)
-		if (len(NUNV0303StructList) != 0):
-			for nunv0303 in NUNV0303StructList:
-				NUNProps.append(nunv0303)
+		nunvOffset = len(NUNO0303StructList)
+		nunsOffset = len(NUNO0303StructList) + len(NUNV0303StructList)
+		for nuno0303 in NUNO0303StructList:
+			NUNProps.append(nuno0303)
+		for nunv0303 in NUNV0303StructList:
+			NUNProps.append(nunv0303)
+		for nuns0303 in NUNS0303StructList:
+			NUNProps.append(nuns0303)
 		for prop in NUNProps:
 			boneStart = len(boneList)
 			parentBone = boneIDList[prop.parentBoneID]
