@@ -646,9 +646,9 @@ def parseNUNOSection0301(chunkVersion, bs):
 	skip2 = bs.readInt()
 	skip3 = bs.readInt()
 	bs.readBytes(0x3C)
-	if (chunkVersion > 0x30303233):
+	if chunkVersion > 0x30303233:
 		bs.readBytes(0x10)
-	if (chunkVersion >= 0x30303235):
+	if chunkVersion >= 0x30303235:
 		bs.readBytes(0x10)
 
 	for i in range(controlPointCount):
@@ -696,9 +696,15 @@ def parseNUNOSection0303(chunkVersion, bs):
 	bs.read('i')
 	skip2 = bs.readInt()
 	skip3 = bs.readInt()
-	bs.readBytes(0xAC)
-	if (chunkVersion >= 0x30303235):
+	bs.readBytes(0x10)
+	nunopcode = bs.readInt()
+	bs.readBytes(0x98)
+	if chunkVersion >= 0x30303235:
 		bs.readBytes(0x10)
+	if chunkVersion >= 0x30303332:
+		bs.readBytes(0x1C)
+		if(nunopcode == 3):
+			bs.readBytes(0x14)
 
 	for i in range(controlPointCount):
 		nunotype0303.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
@@ -758,7 +764,7 @@ def parseNUNVSection0501(chunkVersion, bs):
 	unknownSectionCount = bs.readUInt()
 	skip1 = bs.readInt()
 	bs.readBytes(0x54)
-	if (chunkVersion >= 0x30303131):
+	if chunkVersion >= 0x30303131:
 		bs.readBytes(0x10)
 
 	for i in range(controlPointCount):
