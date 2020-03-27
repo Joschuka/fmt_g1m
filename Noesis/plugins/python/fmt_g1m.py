@@ -230,8 +230,8 @@ class Texture:
 class LOD:
 	def __init__(self):
 		self.name = ""
-		self.ID = 0
-		self.ID2 = 0
+		self.clothID = 0
+		self.NUNID = 0
 		self.indices = []
 
 
@@ -410,8 +410,9 @@ def processChunkType9(chunkVersion,bs):
 		for j in range(meshCount1 + meshCount2):
 			lod = LOD()
 			lod.name = bs.readBytes(16)
-			lod.ID = bs.readUInt()
-			lod.ID2 = bs.readUInt()
+			lod.clothID = bs.readUShort()
+			bs.readUShort()
+			lod.NUNID = bs.readUInt()
 			indexCount = bs.readUInt()
 			for k in range(indexCount):
 				a = bs.readUInt()
@@ -2422,12 +2423,12 @@ def LoadModel(data, mdlList):
 	for lod in g1m.lodList[0].list:
 		for index in lod.indices:
 			submeshesIndex.append(index)
-			isClothType1List[index] = (lod.ID & 0xF == 1 or lod.ID == 65536) and lod.ID2 != 0xFFFFFFFF
-			isClothType2List[index] = (lod.ID & 0xF == 2 or lod.ID == 131072) and lod.ID2 != 0xFFFFFFFF
-			if lod.ID2 >= 10000 and lod.ID2 < 20000:
-				ID2s[index] = (lod.ID2 & 0xF) + nunvOffset
+			isClothType1List[index] = lod.clothID == 1 
+			isClothType2List[index] = lod.clothID == 2
+			if lod.NUNID >= 10000 and lod.NUNID < 20000:
+				ID2s[index] = (lod.NUNID & 0xF) + nunvOffset
 			else:				
-				ID2s[index] = lod.ID2 & 0xF
+				ID2s[index] = lod.NUNID & 0xF
 	submeshesIndex = list(set(submeshesIndex))
 	KeepDrawing = True
 	currentMesh = 0
