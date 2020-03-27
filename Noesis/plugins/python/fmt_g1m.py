@@ -2422,8 +2422,8 @@ def LoadModel(data, mdlList):
 	for lod in g1m.lodList[0].list:
 		for index in lod.indices:
 			submeshesIndex.append(index)
-			isClothType1List[index] = lod.ID & 0xF == 1 or lod.ID == 65536
-			isClothType2List[index] = lod.ID & 0xF == 2 or lod.ID == 131072
+			isClothType1List[index] = (lod.ID & 0xF == 1 or lod.ID == 65536) and lod.ID2 != 0xFFFFFFFF
+			isClothType2List[index] = (lod.ID & 0xF == 2 or lod.ID == 131072) and lod.ID2 != 0xFFFFFFFF
 			if lod.ID2 >= 10000 and lod.ID2 < 20000:
 				ID2s[index] = (lod.ID2 & 0xF) + nunvOffset
 			else:				
