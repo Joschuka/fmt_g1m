@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.0
+#Version 1.0.1
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
