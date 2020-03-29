@@ -1418,6 +1418,20 @@ def processG2A(bs, animCount, animName, endian):
 			quantizedData = []
 			for k in range(keyFrameCount):
 				quantizedData.append([bs.readInt64() for j in range(4)])
+			if(keyFrameCount == 1):
+				if (opcode == 0):
+					temp1 = function1(quantizedData[0], 0, 1)
+					temp2 = function2(temp1)
+					rotationKeyframedValue = NoeKeyFramedValue(1,NoeQuat(temp2).transpose())
+					rotNoeKeyFramedValues.append(rotationKeyframedValue)
+				elif (opcode == 1):
+					temp1 = function1(quantizedData[0], 0, 1)
+					positionKeyFramedValue = NoeKeyFramedValue(1, NoeVec3(temp1))
+					posNoeKeyFramedValues.append(positionKeyFramedValue)
+				elif (opcode == 2):
+					temp1 = function1(quantizedData[0], 0, 1)
+					scaleKeyFramedValue = NoeKeyFramedValue(1, NoeVec3(temp1))
+					scaleNoeKeyFramedValues.append(scaleKeyFramedValue)
 			for k in range(keyFrameCount - 1):
 				if (opcode == 0):
 					keyframe1, keyframe2 = keyFrameTimings[k], keyFrameTimings[k + 1]
