@@ -38,6 +38,10 @@ Enable choosing a g1t texture file. Choosing a wrong one will lead to errors. On
 
 Enable choosing another g1m which contains the skeleton. Choosing a wrong one or not choosing one for a model needing one will lead to errors.
 
+* bLoadG1MSOnly
+
+Only Load the skeleton.
+
 * bLoadG1MOid
 
 Enable choosing an `Oid.bin` file which contains the bone names for the skeleton.
