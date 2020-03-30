@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.0.1
+#Version 1.0.2
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -22,6 +22,7 @@ bDisplayDrivers = True		# Discard cloth drivers and physics' bones or not
 #paired files options
 bLoadG1T = True				# Allow to choose a paired .g1t file
 bLoadG1MS = True			# Allow to choose a paired .g1m skeleton file. Only choose this option if the skeleton is in a separate g1m
+bLoadG1MSOnly = False		# Only load the skeleton
 bLoadG1MOid = False			# Allow to choose a paired Oid.bin skeleton bone names file.
 bAutoLoadG1MS = False		# Load the first g1m in the same folder as skeleton
 bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
@@ -1950,6 +1951,8 @@ def LoadModel(data, mdlList):
 	
 	print("Mesh info parsing, may take a few seconds for some games")
 	for infoID in range(len(g1m.meshInfoList)):
+		if bLoadG1MSOnly:
+			break
 		info = g1m.meshInfoList[infoID]
 		spec = g1m.specList[info[1]]
 		mesh = meshList[info[1]]
@@ -2461,6 +2464,8 @@ def LoadModel(data, mdlList):
 	print("Adding submeshes")
 	rootFixFlag = False
 	for i, mesh in enumerate(meshList):
+		if bLoadG1MSOnly:
+			break
 		if not KeepDrawing:
 			break
 		if (isClothType2List[currentMesh] and (bComputeCloth or noesis.optWasInvoked("-g1mcloth"))):
@@ -2718,7 +2723,10 @@ def LoadModel(data, mdlList):
 	except:
 		mdl = NoeModel()
 	if(len(submeshesIndex))>0:
-		mdl.meshes = mdl.meshes + tuple(finalDriverMeshes)
+		if bLoadG1MSOnly:
+			mdl.meshes = finalDriverMeshes
+		else:
+			mdl.meshes = mdl.meshes + tuple(finalDriverMeshes)
 	if len(meshList) > 0:
 		mdl.setModelMaterials(NoeModelMaterials(textureList, matList))
 	if len(boneList) > 0:
