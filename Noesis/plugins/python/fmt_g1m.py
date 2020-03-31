@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.0.2
+#Version 1.1.0
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -18,6 +18,7 @@ bLog = True					# Display log, with some progress info
 bComputeCloth = True		# Compute cloth data and physics' drivers + fix cloth meshes using the NUNO/NUNV sections
 bDisplayCloth = True		# Discard cloth meshes or not, you may want to put it to false if cloth get in the way during animations since they won't move as they are supposed to be animated by the physics' engine at runtime
 bDisplayDrivers = True		# Discard cloth drivers and physics' bones or not
+bParseNUNS = True			# Parse NUNS section
 
 #paired files options
 bLoadG1T = True				# Allow to choose a paired .g1t file
@@ -29,6 +30,9 @@ bLoadG1AG2A = False	 		# Allow to choose a paired .g1a/.g2a file
 bLoadG1AG2AFolder = False	# Allow to choose a folder, all .g1a/.g2a files in this folder will be loaded
 bLoadG1H = False			# Allow to choose a paired .g1h file
 G1HOffset = 20				# Offset between different morph targets
+
+#game options
+bDOA6FaceAnims = False		# Put that option to True when loading DOA facial animations. Put to False otherwise.
 
 # =================================================================
 # Miscenalleous
@@ -436,6 +440,7 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 	global hasParsedExternal
 	global externalOffsetList
 	global externalOffsetMax
+	global localBoneMatrices
 	jointDataOffset = bs.readUInt()
 	conditionNumber = bs.readUShort()
 	if isDefault: # and conditionNumber == 0: (seemed to work on most models but found out that broke some of them)
@@ -475,6 +480,7 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 			bs.read('f')
 			boneMatrixTransform = NoeQuat(quaternionRotation).toMat43().inverse()
 			boneMatrixTransform[3] = NoeVec3(position)
+			localBoneMatrices.append(boneMatrixTransform)
 			bone = NoeBone(i, 'bone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID)
 			boneList.append(bone)
 		for bone in boneList:
@@ -846,8 +852,10 @@ def parseNUNSSection0601(chunkVersion, bs):
 		influence.P7 = bs.readInt()
 		influence.P8 = bs.readInt()
 		nunstype0601.influences.append(influence)
-	bs.readBytes(skip1)
-	
+	#bs.readBytes(skip1) Seemed consistent but breaks sometimes
+	previous = -1
+	while(previous != 0 and previous != 1):
+		previous = bs.readInt()	
 	#BLWO 
 	bs.readBytes(8)
 	blwoSize = bs.readUInt()
@@ -859,6 +867,8 @@ def parseNUNSSection0601(chunkVersion, bs):
 
 def parseNUNS(chunkVersion, bs):
 	# number of sections
+	if not bParseNUNS:
+		return 1
 	count = bs.readInt()
 	for i in range(count):
 		currentPosition = bs.tell()
@@ -1423,12 +1433,23 @@ def processG2A(bs, animCount, animName, endian):
 				if (opcode == 0):
 					temp1 = function1(quantizedData[0], 0, 1)
 					temp2 = function2(temp1)
-					rotationKeyframedValue = NoeKeyFramedValue(1,NoeQuat(temp2).transpose())
-					rotNoeKeyFramedValues.append(rotationKeyframedValue)
+					if bDOA6FaceAnims:
+						offsetMat = NoeQuat(temp2).transpose().toMat43()
+						offsetMat*=localBoneMatrices[boneIDList[boneID]]
+						rotationKeyframedValue = NoeKeyFramedValue(1,offsetMat.toQuat())
+						rotNoeKeyFramedValues.append(rotationKeyframedValue)
+					else:
+						rotationKeyframedValue = NoeKeyFramedValue(1,NoeQuat(temp2).transpose())
+						rotNoeKeyFramedValues.append(rotationKeyframedValue)
 				elif (opcode == 1):
 					temp1 = function1(quantizedData[0], 0, 1)
-					positionKeyFramedValue = NoeKeyFramedValue(1, NoeVec3(temp1))
-					posNoeKeyFramedValues.append(positionKeyFramedValue)
+					if bDOA6FaceAnims:
+						pos = localBoneMatrices[boneIDList[boneID]].transformPoint(NoeVec3(temp1))
+						positionKeyFramedValue = NoeKeyFramedValue(1, pos)
+						posNoeKeyFramedValues.append(positionKeyFramedValue)
+					else:
+						positionKeyFramedValue = NoeKeyFramedValue(1, NoeVec3(temp1))
+						posNoeKeyFramedValues.append(positionKeyFramedValue)
 				elif (opcode == 2):
 					temp1 = function1(quantizedData[0], 0, 1)
 					scaleKeyFramedValue = NoeKeyFramedValue(1, NoeVec3(temp1))
@@ -1439,15 +1460,27 @@ def processG2A(bs, animCount, animName, endian):
 					for l in range(keyframe2 - keyframe1):
 						temp1 = function1(quantizedData[k], l, keyframe2 - keyframe1)
 						temp2 = function2(temp1)
-						rotationKeyframedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate,
-																   NoeQuat(temp2).transpose())
-						rotNoeKeyFramedValues.append(rotationKeyframedValue)
+						if bDOA6FaceAnims:
+							offsetMat = NoeQuat(temp2).transpose().toMat43()
+							offsetMat*=localBoneMatrices[boneIDList[boneID]]
+							rotationKeyframedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate,
+																	   offsetMat.toQuat())
+							rotNoeKeyFramedValues.append(rotationKeyframedValue)
+						else:
+							rotationKeyframedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate,
+																	   NoeQuat(temp2).transpose())
+							rotNoeKeyFramedValues.append(rotationKeyframedValue)
 				elif (opcode == 1):
 					keyframe1, keyframe2 = keyFrameTimings[k], keyFrameTimings[k + 1]
 					for l in range(keyframe2 - keyframe1):
 						temp1 = function1(quantizedData[k], l, keyframe2 - keyframe1)
-						positionKeyFramedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate, NoeVec3(temp1))
-						posNoeKeyFramedValues.append(positionKeyFramedValue)
+						if bDOA6FaceAnims:
+							pos = localBoneMatrices[boneIDList[boneID]].transformPoint(NoeVec3(temp1))
+							positionKeyFramedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate, pos)
+							posNoeKeyFramedValues.append(positionKeyFramedValue)
+						else:
+							positionKeyFramedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate, NoeVec3(temp1))
+							posNoeKeyFramedValues.append(positionKeyFramedValue)
 				elif (opcode == 2):
 					keyframe1, keyframe2 = keyFrameTimings[k], keyFrameTimings[k + 1]
 					for l in range(keyframe2 - keyframe1):
@@ -1455,6 +1488,7 @@ def processG2A(bs, animCount, animName, endian):
 						scaleKeyFramedValue = NoeKeyFramedValue((keyFrameTimings[k] + l) / framerate, NoeVec3(temp1))
 						scaleNoeKeyFramedValues.append(scaleKeyFramedValue)
 			bs.seek(checkpoint)
+			
 		if (boneID < len(boneIDList)):
 			actionBone = NoeKeyFramedBone(boneIDList[boneID])
 			if (len(rotNoeKeyFramedValues) > 0):
@@ -1688,6 +1722,7 @@ def LoadModel(data, mdlList):
 	global hasParsedExternal
 	global externalOffsetList
 	global externalOffsetMax
+	global localBoneMatrices
 	debug = False
 	g1tData = None
 	g1sData = None
@@ -1702,6 +1737,7 @@ def LoadModel(data, mdlList):
 	hasParsedExternal = False
 	externalOffsetList = 0
 	externalOffsetMax = 0
+	localBoneMatrices = []
 	textureList = []
 	boneList = []
 	boneIDList = []
