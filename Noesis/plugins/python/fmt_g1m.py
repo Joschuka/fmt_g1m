@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.1.0
+#Version 1.2.0
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -18,7 +18,7 @@ bLog = True					# Display log, with some progress info
 bComputeCloth = True		# Compute cloth data and physics' drivers + fix cloth meshes using the NUNO/NUNV sections
 bDisplayCloth = True		# Discard cloth meshes or not, you may want to put it to false if cloth get in the way during animations since they won't move as they are supposed to be animated by the physics' engine at runtime
 bDisplayDrivers = True		# Discard cloth drivers and physics' bones or not
-bParseNUNS = True			# Parse NUNS section
+bParseNUNS = True			# Parse NUNS section, disable if you don't want NUNS drivers/bones.
 
 #paired files options
 bLoadG1T = True				# Allow to choose a paired .g1t file
@@ -824,10 +824,8 @@ def parseNUNV(chunkVersion, bs):
 def parseNUNSSection0601(chunkVersion, bs):
 	nunstype0601 = NUNOType0303Struct()  # same struct
 	nunstype0601.name = "nuns"
-	a = bs.readUByte()
-	bs.readUByte()
+	a = bs.readUShort()
 	b = bs.readUShort()
-	a = 0
 	nunstype0601.parentBoneID = a if endian == NOE_LITTLEENDIAN else b		
 	controlPointCount = bs.readUInt()
 	unk1 = bs.readUInt()
@@ -854,10 +852,10 @@ def parseNUNSSection0601(chunkVersion, bs):
 		nunstype0601.influences.append(influence)
 	#bs.readBytes(skip1) Seemed consistent but breaks sometimes
 	previous = -1
-	while(previous != 0 and previous != 1):
-		previous = bs.readInt()	
+	while(previous != 0x424C5730):
+		previous = bs.readUInt()	
 	#BLWO 
-	bs.readBytes(8)
+	bs.readBytes(4)
 	blwoSize = bs.readUInt()
 	bs.readBytes(blwoSize)
 	bs.readBytes(0xC)
@@ -1943,7 +1941,7 @@ def LoadModel(data, mdlList):
 			NUNProps.append(nuns0303)
 		for prop in NUNProps:
 			boneStart = len(boneList)
-			parentBone = boneIDList[prop.parentBoneID]
+			parentBone = boneIDList[prop.parentBoneID]			
 			nunoMap = {}
 			driverMesh = Mesh()
 			driverMesh.vertCount = 0
@@ -1953,7 +1951,6 @@ def LoadModel(data, mdlList):
 				nunoMap[pointIndex] = len(boneList)
 				boneMatrixTransform = NoeQuat().toMat43().inverse()
 				parentID = link.P3
-
 				if (parentID == -1):
 					parentID = parentBone
 					boneMatrixTransform[3] = p
