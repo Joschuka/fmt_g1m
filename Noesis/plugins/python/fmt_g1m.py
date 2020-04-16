@@ -521,19 +521,42 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 		print("Skeleton parsed")			
 	return 1
 
-def parseG1MOid(bs, plaintext):
+def parseG1MOid(bs):
 	if len(boneList) == 0: 
 		return 1
 	stringList = []
-	if plaintext:
-		stringList = noeStrFromBytes(bs.readBytes(bs.getSize())).split('\n')
+
+	OidType = 0
+
+	bs.seek(bs.getSize() - 1)
+	if bs.readBytes(1)[0] == 0xFF:
+		OidType = 1
 	else:
-		while(1):
-			length = bs.readByte()
-			if (length == 255 or length == -1):
-				break
-			string = noeStrFromBytes(bs.readBytes(length))
-			stringList.append(string)
+		bs.seek(0xC)
+		if bs.readUInt() == 0:
+			OidType = 2
+
+	bs.seek(0)
+
+	if OidType == 0:
+		stringList = noeStrFromBytes(bs.readBytes(bs.getSize())).split('\n')
+	elif OidType == 1:
+			while(1):
+				length = bs.readByte()
+				if (length == 255 or length == -1):
+					break
+				string = noeStrFromBytes(bs.readBytes(length))
+				stringList.append(string)
+	elif OidType == 2:
+		absBoneLength = bs.readUInt()
+		stringList.append("HeaderCharaOid")
+		stringList.append("ObjectId")
+		stringList.append("1")
+		for i in range(0, int((bs.getSize() - 0x4) / 0xC)):
+			boneId = bs.readUInt()
+			ktid = bs.readUInt()
+			rsvd = bs.readUInt()
+			stringList.append("%d,SK_%08X" % (boneId, ktid))
 
 	if len(stringList) < 1:
 		print("Oid is too small!")
@@ -1855,7 +1878,7 @@ def LoadModel(data, mdlList):
 	if oidPath is not None:
 		with open(oidPath, "rb") as oidStream:
 			oidData = NoeBitStream(oidStream.read())
-			parseG1MOid(oidData, oidPath.lower().endswith("oid"))
+			parseG1MOid(oidData)
 	
 	if bLoadG1AG2AFolder or noesis.optWasInvoked("-g1manimationdir"):
 		if noesis.optWasInvoked("-g1manimationdir"):
