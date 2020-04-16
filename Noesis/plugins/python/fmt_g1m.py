@@ -521,21 +521,20 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 		print("Skeleton parsed")			
 	return 1
 
-def parseG1MOid(bs, plaintext):
+def parseG1MOid(bs):
 	if len(boneList) == 0: 
 		return 1
 	stringList = []
 
 	OidType = 0
 
-	if plaintext:
-		bs.seek(bs.getSize() - 1)
-		if bs.readBytes(1)[0] == 0xFF:
-			OidType = 1
-		else:
-			bs.seek(0xC)
-			if bs.readUInt() == 0:
-				OidType = 2
+	bs.seek(bs.getSize() - 1)
+	if bs.readBytes(1)[0] == 0xFF:
+		OidType = 1
+	else:
+		bs.seek(0xC)
+		if bs.readUInt() == 0:
+			OidType = 2
 
 	bs.seek(0)
 
@@ -1879,7 +1878,7 @@ def LoadModel(data, mdlList):
 	if oidPath is not None:
 		with open(oidPath, "rb") as oidStream:
 			oidData = NoeBitStream(oidStream.read())
-			parseG1MOid(oidData, oidPath.lower().endswith("oid"))
+			parseG1MOid(oidData)
 	
 	if bLoadG1AG2AFolder or noesis.optWasInvoked("-g1manimationdir"):
 		if noesis.optWasInvoked("-g1manimationdir"):
