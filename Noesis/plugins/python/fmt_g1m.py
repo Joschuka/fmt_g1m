@@ -525,15 +525,39 @@ def parseG1MOid(bs, plaintext):
 	if len(boneList) == 0: 
 		return 1
 	stringList = []
+
+	OidType = 0
+
 	if plaintext:
+		bs.seek(bs.getSize() - 1)
+		if bs.readBytes(1)[0] == 0xFF:
+			OidType = 1
+		else:
+			bs.seek(0xC)
+			if bs.readUInt() == 0:
+				OidType = 2
+
+	bs.seek(0)
+
+	if OidType == 0:
 		stringList = noeStrFromBytes(bs.readBytes(bs.getSize())).split('\n')
-	else:
-		while(1):
-			length = bs.readByte()
-			if (length == 255 or length == -1):
-				break
-			string = noeStrFromBytes(bs.readBytes(length))
-			stringList.append(string)
+	elif OidType == 1:
+			while(1):
+				length = bs.readByte()
+				if (length == 255 or length == -1):
+					break
+				string = noeStrFromBytes(bs.readBytes(length))
+				stringList.append(string)
+	elif OidType == 2:
+		absBoneLength = bs.readUInt()
+		stringList.append("HeaderCharaOid")
+		stringList.append("ObjectId")
+		stringList.append("1")
+		for i in range(0, int((bs.getSize() - 0x4) / 0xC)):
+			boneId = bs.readUInt()
+			ktid = bs.readUInt()
+			rsvd = bs.readUInt()
+			stringList.append("%d,SK_%08X" % (boneId, ktid))
 
 	if len(stringList) < 1:
 		print("Oid is too small!")
