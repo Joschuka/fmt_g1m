@@ -391,7 +391,7 @@ def processChunkType8(chunkVersion,bs):
 	count = bs.readUInt()
 	for i in range(count):
 		# CRITICAL check if the entry is valid
-		g1m.meshInfoList.append([bs.readUInt() for j in range(14)])
+		g1m.meshInfoList.append([bs.readInt() for j in range(14)])
 	# Unknown             0x0000
 	# VertexBufferID      0x0001
 	# IndexIntoJointMap   0x0002
@@ -2010,6 +2010,8 @@ def LoadModel(data, mdlList):
 		if bLoadG1MSOnly:
 			break
 		info = g1m.meshInfoList[infoID]
+		if info[11] <= 0:
+			continue
 		spec = g1m.specList[info[1]]
 		mesh = meshList[info[1]]
 		mat = Material()
