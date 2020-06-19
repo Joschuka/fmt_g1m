@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.2.1
+#Version 1.3.0
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -734,15 +734,14 @@ def parseNUNOSection0303(chunkVersion, bs):
 	bs.read('i')
 	skip2 = bs.readInt()
 	skip3 = bs.readInt()
-	bs.readBytes(0x10)
-	nunopcode = bs.readInt()
-	bs.readBytes(0x98)
-	if chunkVersion >= 0x30303235:
-		bs.readBytes(0x10)
-	if chunkVersion >= 0x30303332:
-		bs.readBytes(0x1C)
-		if(nunopcode == 3):
-			bs.readBytes(0x14)
+	skip4 = bs.readInt()
+	if chunkVersion < 0x30303332:		
+		bs.readBytes(0xA8)
+		if chunkVersion >= 0x30303235:
+			bs.readBytes(0x10)
+	else:
+		bs.readBytes(0x8)
+		bs.seek(bs.readUInt()-4,1)
 
 	for i in range(controlPointCount):
 		nunotype0303.controlPoints.append(NoeVec3([bs.readFloat() for j in range(3)]))
@@ -762,6 +761,7 @@ def parseNUNOSection0303(chunkVersion, bs):
 	bs.readBytes(4 * skip1)
 	bs.readBytes(8 * skip2)
 	bs.readBytes(12 * skip3)
+	bs.readBytes(8 * skip4)
 	
 
 	NUNO0303StructList.append(nunotype0303)
@@ -958,9 +958,14 @@ def processG1T(bs):
 			computedSize = width * height * 4
 			format = "b8 g8 r8 a8"	
 		elif (textureFormat == 0x2):
-			format = noesis.NOESISTEX_DXT1
+			computedSize = width * height * 4
+			format = "r32"
 		elif (textureFormat == 0x3):
-			format = noesis.NOESISTEX_DXT5
+			computedSize = width * height * 4
+			format = "r16 g16 b16 a16"
+		elif (textureFormat == 0x4):
+			computedSize = width * height * 4
+			format = "r32 g32 b32 a32"
 		elif (textureFormat == 0x6):
 			format = noesis.NOESISTEX_DXT1
 		elif (textureFormat == 0x7):
@@ -971,6 +976,12 @@ def processG1T(bs):
 			computedSize = width * height * 4
 			format = "b8 g8 r8 a8"
 			mortonWidth = 0x20
+		elif (textureFormat == 0xB):
+			computedSize = width * height 
+			format = "r32"
+		elif (textureFormat == 0xD):
+			computedSize = width * height 
+			format = "r32 g32 b32 a32"
 		elif (textureFormat == 0xF):
 			computedSize = width * height 
 			format = "a8"			
@@ -1014,6 +1025,10 @@ def processG1T(bs):
 		elif (textureFormat == 0x62):
 			format = noesis.NOESISTEX_DXT5
 			mortonWidth = 8
+		elif (textureFormat == 0x63):
+			format = noesis.FOURCC_BC4
+			mortonWidth = 8
+			bNormalized = False
 		elif (textureFormat == 0x64):
 			format = noesis.FOURCC_BC5
 			mortonWidth = 8
@@ -1021,6 +1036,10 @@ def processG1T(bs):
 		elif (textureFormat == 0x65):
 			format = noesis.FOURCC_BC6H
 			mortonWidth = 8
+		elif (textureFormat == 0x66):
+			format = noesis.FOURCC_BC7
+			mortonWidth = 8
+			bNormalized = False
 		elif (textureFormat == 0x6F):
 			format = "ETC1_rgb"
 			computedSize = width * height
@@ -1029,6 +1048,7 @@ def processG1T(bs):
 		else:
 			format = noesis.NOESISTEX_UNKNOWN
 			print("possible unknown format !")
+			print(hex(textureFormat))
 		textureName = str(i) + '.dds'
 		if computedSize >= 0:
 			textureData = bs.readBytes(computedSize)
@@ -1513,11 +1533,11 @@ def processG2A(bs, animCount, animName, endian):
 		if (boneID < len(boneIDList)):
 			actionBone = NoeKeyFramedBone(boneIDList[boneID])
 			if (len(rotNoeKeyFramedValues) > 0):
-				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4)
+				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4,noesis.NOEKF_INTERPOLATE_NEAREST)
 			if (len(posNoeKeyFramedValues) > 0):
-				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3)
+				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
 			if (len(scaleNoeKeyFramedValues) > 0):
-				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3)
+				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
 			keyFramedBoneList.append(actionBone)
 		else:
 			bCompatible = False
@@ -1648,11 +1668,11 @@ def processG1A(bs, animCount, animName, endian):
 		if (boneID < len(boneIDList)):
 			actionBone = NoeKeyFramedBone(boneIDList[boneID])
 			if (len(rotNoeKeyFramedValues) > 0):
-				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4)
+				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4,noesis.NOEKF_INTERPOLATE_NEAREST)
 			if (len(posNoeKeyFramedValues) > 0):
-				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3)
+				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
 			if (len(scaleNoeKeyFramedValues) > 0):
-				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3)
+				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
 			keyFramedBoneList.append(actionBone)
 		else:
 			bCompatible = False
@@ -2533,7 +2553,7 @@ def LoadModel(data, mdlList):
 							g1m.boneMapListCloth[g1m.meshInfoList[currentMesh][2]])):
 						index = g1m.boneMapListCloth[g1m.meshInfoList[currentMesh][2]][
 							mesh.oldSkinIndiceList[v][0] // 3]
-						if (index != 0 and index < len(boneList)):
+						if (index < len(boneList)):
 							quat1 = boneList[index].getMatrix().toQuat()
 							quat2 = NoeQuat([0 - quat1[0], 0 - quat1[1], 0 - quat1[2], quat1[3]]) * NoeQuat(
 								[mesh.vertPosBuff[v][0], mesh.vertPosBuff[v][1], mesh.vertPosBuff[v][2], 0]) * quat1

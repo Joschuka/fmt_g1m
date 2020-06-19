@@ -6,7 +6,7 @@ import os
 # 1 = collapse by name
 # 2 = collapse by name and reapply relative transforms
 # 3 = collapse by name and reapply relative transforms, retransforming geometry as well
-MERGE_BONES = 0
+MERGE_BONES = 1
 
 
 def registerNoesisTypes():
