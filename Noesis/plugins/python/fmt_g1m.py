@@ -2528,9 +2528,9 @@ def LoadModel(data, mdlList):
 			isClothType1List[index] = lod.clothID == 1 
 			isClothType2List[index] = lod.clothID == 2
 			if lod.NUNID >= 10000 and lod.NUNID < 20000:
-				ID2s[index] = (lod.NUNID & 0xF) + nunvOffset
+				ID2s[index] = (lod.NUNID % 10000) + nunvOffset
 			else:				
-				ID2s[index] = lod.NUNID & 0xF
+				ID2s[index] = lod.NUNID % 10000
 	submeshesIndex = list(set(submeshesIndex))
 	KeepDrawing = True
 	currentMesh = 0
