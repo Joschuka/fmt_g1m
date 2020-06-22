@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.1
+#Version 1.3.2
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -511,11 +511,11 @@ def parseG1MS(currentPosition, bs, isDefault = True):
 			boneMatrixTransform = NoeQuat(quaternionRotation).toMat43().inverse()
 			boneMatrixTransform[3] = NoeVec3(position)
 			if parentID < 0:
-				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID & 0xFFFF)
+				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(i), boneMatrixTransform, None, parentID & 0xFFFF)
 				bone.setMatrix(bone.getMatrix() * boneList[parentID & 0xFFFF].getMatrix())
 				boneList.append(bone)
 			else:
-				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(boneToBoneID[i]), boneMatrixTransform, None, parentID + externalOffsetList)
+				bone = NoeBone(i + externalOffsetList, 'Clothbone_' + str(i), boneMatrixTransform, None, parentID + externalOffsetList)
 				bone.setMatrix(bone.getMatrix() * boneList[parentID +externalOffsetList].getMatrix())
 				boneList.append(bone)
 		print("Skeleton parsed")			
