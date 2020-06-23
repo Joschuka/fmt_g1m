@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.2
+#Version 1.3.3
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -1027,7 +1027,7 @@ def processG1T(bs):
 			mortonWidth = 8
 		elif (textureFormat == 0x63):
 			format = noesis.FOURCC_BC4
-			mortonWidth = 8
+			mortonWidth = 4
 			bNormalized = False
 		elif (textureFormat == 0x64):
 			format = noesis.FOURCC_BC5
