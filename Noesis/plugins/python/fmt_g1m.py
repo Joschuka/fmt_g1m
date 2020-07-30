@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.3
+#Version 1.3.4
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -2675,7 +2675,7 @@ def LoadModel(data, mdlList):
 		# finalColorBuffer+=noePack(endianC + 'f',vertex[k])
 		
 		# Weights
-		if (len(boneList) > 0):
+		if (len(boneList) > 0) and len(mesh.skinIndiceList) > 0:
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinWeightList[v]
 				for k in range(4):
@@ -2685,7 +2685,7 @@ def LoadModel(data, mdlList):
 					for k in range(4):
 						finalWeightList += noePack(endianC + 'f', vertex[k])
 		# Bone indices
-		if (len(boneList) > 0):
+		if (len(boneList) > 0) and len(mesh.skinIndiceList) > 0:
 			for v in range(mesh.vertCount):
 				vertex = mesh.skinIndiceList[v]
 				for k in range(4):
@@ -2708,7 +2708,7 @@ def LoadModel(data, mdlList):
 		if len(mesh.vertUV2Buff) > 0:
 			rapi.rpgBindUVXBuffer(finalVertexUV2Buffer, noesis.RPGEODATA_FLOAT, 8, 2, mesh.vertCount)
 			
-		if (len(boneList) > 0):
+		if (len(boneList) > 0) and len(mesh.skinIndiceList) > 0:
 			rapi.rpgBindBoneIndexBuffer(finalIndiceList, noesis.RPGEODATA_USHORT,16 if mesh.Has8Weights else 8, 8 if mesh.Has8Weights else 4)
 			rapi.rpgBindBoneWeightBuffer(finalWeightList, noesis.RPGEODATA_FLOAT, 32 if mesh.Has8Weights else 16, 8 if mesh.Has8Weights else 4)
 
