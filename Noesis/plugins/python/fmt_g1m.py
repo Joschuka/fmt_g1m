@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.4
+#Version 1.3.5
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -1668,11 +1668,11 @@ def processG1A(bs, animCount, animName, endian):
 		if (boneID < len(boneIDList)):
 			actionBone = NoeKeyFramedBone(boneIDList[boneID])
 			if (len(rotNoeKeyFramedValues) > 0):
-				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4,noesis.NOEKF_INTERPOLATE_NEAREST)
+				actionBone.setRotation(rotNoeKeyFramedValues, noesis.NOEKF_ROTATION_QUATERNION_4)
 			if (len(posNoeKeyFramedValues) > 0):
-				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
+				actionBone.setTranslation(posNoeKeyFramedValues, noesis.NOEKF_TRANSLATION_VECTOR_3)
 			if (len(scaleNoeKeyFramedValues) > 0):
-				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3,noesis.NOEKF_INTERPOLATE_NEAREST)
+				actionBone.setScale(scaleNoeKeyFramedValues, noesis.NOEKF_SCALE_VECTOR_3)
 			keyFramedBoneList.append(actionBone)
 		else:
 			bCompatible = False
