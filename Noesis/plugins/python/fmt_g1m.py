@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.6a
+#Version 1.3.7
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -908,7 +908,6 @@ def parseNUNS(chunkVersion, bs):
 def processG1T(bs):
 	if bLog:
 		noesis.logPopup()
-	bShouldWrap = rapi.getInputName().lower().endswith("g1t") or rapi.noesisIsExporting()
 	magic = bs.read('<i')[0]
 	if (magic == HEADER_G1T_BE):
 		endiang1t = NOE_BIGENDIAN
@@ -952,6 +951,7 @@ def processG1T(bs):
 		computedSize = -1
 		mortonWidth = 0
 		bNormalized = True
+		bSpecialCaseETC2 = False
 		if (textureFormat == 0x0):
 			computedSize = width * height * 4
 			format = "r8 g8 b8 a8"	
@@ -1044,8 +1044,8 @@ def processG1T(bs):
 		elif (textureFormat == 0x6F):
 			format = "ETC1_rgb"
 			computedSize = width * height
-			if bShouldWrap:
-				height = int(height * 2)
+			bSpecialCaseETC2 = True
+			height = int(height * 2)
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
 		else:
@@ -1099,6 +1099,16 @@ def processG1T(bs):
 					textureData = rapi.imageFromMortonOrder(textureData, width, height, mortonWidth)
 				else:
 					textureData = rapi.imageFromMortonOrder(textureData, width >> 1, height >> 2, mortonWidth)
+		if bSpecialCaseETC2:
+			height = int(height / 2)
+			temp = textureData
+			alphaOffset = width * height * 4
+			textureData = bytearray(width * height * 4)
+			for j in range(0, width * height * 4, 4):
+				textureData[j] = temp[j]
+				textureData[j + 1] = temp[j + 1]
+				textureData[j + 2] = temp[j + 2]
+				textureData[j + 3] = temp[alphaOffset + j]
 		if bRaw:
 			if format != noesis.NOESISTEX_RGBA32 and format != "r8 g8 b8 a8":
 				textureData = rapi.imageDecodeRaw(textureData, width, height, format)
