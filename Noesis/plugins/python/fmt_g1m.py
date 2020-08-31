@@ -908,7 +908,9 @@ def parseNUNS(chunkVersion, bs):
 def processG1T(bs):
 	if bLog:
 		noesis.logPopup()
-	bShouldWrap = rapi.getInputName().lower().endswith("g1t") or rapi.noesisIsExporting
+	bShouldWrap = rapi.getInputName().lower().endswith("g1t") or rapi.noesisIsExporting()
+	print(bShouldWrap)
+	print(rapi.getInputName())
 	magic = bs.read('<i')[0]
 	if (magic == HEADER_G1T_BE):
 		endiang1t = NOE_BIGENDIAN
