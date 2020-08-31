@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.6
+#Version 1.3.6a
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -908,7 +908,7 @@ def parseNUNS(chunkVersion, bs):
 def processG1T(bs):
 	if bLog:
 		noesis.logPopup()
-	bShouldWrap = rapi.getInputName().endswith("g1t") or rapi.noesisIsExporting
+	bShouldWrap = rapi.getInputName().lower().endswith("g1t") or rapi.noesisIsExporting
 	magic = bs.read('<i')[0]
 	if (magic == HEADER_G1T_BE):
 		endiang1t = NOE_BIGENDIAN
