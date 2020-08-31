@@ -5,7 +5,7 @@ from math import sqrt, sin, cos, floor
 # debugger = rpdb.Rpdb()
 # debugger.set_trace()
 
-#Version 1.3.5
+#Version 1.3.6
 
 # =================================================================
 # Plugin Options, a few of them are exposed as commands (see below)
@@ -908,6 +908,7 @@ def parseNUNS(chunkVersion, bs):
 def processG1T(bs):
 	if bLog:
 		noesis.logPopup()
+	bShouldWrap = rapi.getInputName().endswith("g1t") or rapi.noesisIsExporting
 	magic = bs.read('<i')[0]
 	if (magic == HEADER_G1T_BE):
 		endiang1t = NOE_BIGENDIAN
@@ -1043,13 +1044,15 @@ def processG1T(bs):
 		elif (textureFormat == 0x6F):
 			format = "ETC1_rgb"
 			computedSize = width * height
+			if bShouldWrap:
+				height = int(height * 2)
 			if i < len(offsetList) - 1:
 				offsetList[i + 1] = offsetList[i] + headerSize + computedSize
 		else:
 			format = noesis.NOESISTEX_UNKNOWN
 			print("possible unknown format !")
 			print(hex(textureFormat))
-		textureName = str(i) + '.dds'
+		textureName = '%d.dds' % i
 		if computedSize >= 0:
 			textureData = bs.readBytes(computedSize)
 		else:
@@ -1069,11 +1072,16 @@ def processG1T(bs):
 			format = "r8 g8 b8 a8"
 		elif bRaw and format.startswith("ASTC"):
 			dims = list(map(lambda x: int(x), format.split('_')[1:]))
-			if mortonWidth > 0:
-				textureData = rapi.callExtensionMethod("untile_1dthin", textureData, width, height, mortonWidth, 1)
-				mortonWidth = 0
 			textureData = rapi.callExtensionMethod("astc_decoderaw32", textureData, dims[0], dims[1], 1, width, height, 1)
 			format = "r8 g8 b8 a8"
+		elif bRaw and format.startswith("PVRTC"): # PVRTC_2_PLANAR, PVRTC2_2_LINEAR, etc...
+			pvrtcFlags = 0
+			pvrtcBpp = int(format.split('_')[1])
+			if format.startswith("PVRTC2"):
+				pvrtcFlags |= noesis.PVRTC_DECODE_PVRTC2
+			if len(format.split('_')) < 3 or format.split('_')[2] == "LINEAR":
+				pvrtcFlags |= noesis.PVRTC_DECODE_LINEARORDER
+			rgba = rapi.imageDecodePVRTC(textureData, width, height, pvrtcBpp, pvrtcFlags)
 		if texSys == 0 and mortonWidth > 0 and platform != 0xB: print("MipSys is %d, but morton width is defined as %d-- Morton maybe not necessary!" % (texSys, mortonWidth))
 		if mortonWidth > 0:
 			if platform == 2:
