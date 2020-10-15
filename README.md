@@ -3,6 +3,8 @@
 
 A Noesis plugin to import G1M model files, G1T texture file, G1A and G2A skeletal animation files. 
 
+THIS SCRIPT IS DEPRECATED ! USE https://github.com/Joschuka/Project-G1M INSTEAD !
+
 ## Setup
 
 Simply put the python files in the plugins/python/ folder, next to the others.
